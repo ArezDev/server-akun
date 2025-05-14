@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import Navigasi from '@/components/Header';
 import { useRouter } from 'next/navigation';
 import { FaUpload } from 'react-icons/fa6';
+import NavigasiUpload from '@/components/style/FormUpload';
 
 export default function UploadPage() {
     const router = useRouter();
@@ -71,7 +72,7 @@ export default function UploadPage() {
 
     return (
         <>
-            <Navigasi data={userData?.user} />
+        <NavigasiUpload data={userData?.user ? String(userData.user) : undefined} />
 
             <textarea
                 className="w-full h-60 p-4 border border-gray-300 rounded-md dark:bg-gray-800 dark:border-gray-700 resize-none"

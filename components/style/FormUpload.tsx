@@ -1,13 +1,12 @@
-import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
-import { FaUser, FaArrowCircleLeft } from 'react-icons/fa';
+import { FaUser, FaUpload, FaCopy, FaTrash, FaSyncAlt, FaArrowCircleLeft } from 'react-icons/fa';
 
 interface CardListProps {
   data?: string;
 }
 
-const Navigasi: React.FC<CardListProps> = ({ data }) => {
+const NavigasiUpload: React.FC<CardListProps> = ({ data }) => {
     const router = useRouter();
     const HandleUpload = () => {
         router.push('/dashboard');
@@ -16,7 +15,7 @@ const Navigasi: React.FC<CardListProps> = ({ data }) => {
     return (
     <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-2">
-        <FaUser className='text-blue-600' />Dashboard Akun {data}
+        <FaUser className='text-blue-600' />Upload Akun Facebook Cokis {data}
         </h1>
         <button
             onClick={HandleUpload}
@@ -29,4 +28,4 @@ const Navigasi: React.FC<CardListProps> = ({ data }) => {
     );
 };
 
-export default Navigasi;
+export default NavigasiUpload;

@@ -15,7 +15,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [userData, setUserData] = useState<{ id: number; user: string; role: string } | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-
+  const isLoading = useRef(false);
   
   useEffect(() => {
 
@@ -27,17 +27,57 @@ const Dashboard: React.FC = () => {
 
   socket.on('upload_akun_triggered', async (data) => {
       console.log('Event diterima:', data);
-      // get user id
-      const getUserId = await axios.get('/api/user/auth', { withCredentials: true });
-      //get akun dengan user id
-      if (getUserId.data.user.id) {
-        const res = await axios.get<{ fb: string }>('/api/user/akun', {
-          params: {
-            user: getUserId.data.user.id
+
+      if (data?.cokis && !isLoading.current) {
+
+        if (isLoading.current) {
+            console.log("⏳ Masih memproses, abaikan event baru.");
+            return; // cegah eksekusi berulang
+        }
+
+        //set Loading akun..
+        isLoading.current = true;
+
+        // Tampilkan loading
+        Swal.fire({
+          title: 'Mendapatkan akun...',
+          text: 'Tunggu sebentar',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
           },
         });
-        const akunText = res.data.fb || '';
-        setAccounts(akunText);
+
+        try {
+          // Get user ID dari auth API
+          const authRes = await axios.get('/api/user/auth', { withCredentials: true });
+          const userId = authRes.data?.user?.id;
+
+          if (!userId) throw new Error('User ID tidak ditemukan');
+
+          // Get akun dengan user ID
+          const akunRes = await axios.get<{ fb: string }>('/api/user/akun', {
+            params: { user: userId },
+          });
+
+          const akunText = akunRes.data?.fb || '';
+          if (akunText) {
+            setAccounts(akunText);
+            //fetchAccounts();
+          }
+
+        } catch (error) {
+          console.error('Gagal mengambil akun:', error);
+          Swal.close();
+          Swal.fire('Gagal', 'Terjadi kesalahan saat mendapatkan akun.', 'error');
+        } finally {
+          setTimeout(() => {
+            isLoading.current = false; // beri waktu delay agar tidak langsung terbuka untuk event berikutnya
+            console.log("✅ Selesai, siap terima event lagi.");
+            Swal.close();
+            fetchAccounts();
+          }, 2000); // delay sesuai dengan swal success timer
+        }
       }
     });
 
@@ -77,6 +117,10 @@ const Dashboard: React.FC = () => {
   };
 
   checkUser();
+  // Cleanup on unmount
+    return () => {
+      socket.disconnect();
+    };
 }, []);
 
   // Ambil data akun dari API saat halaman dimuat

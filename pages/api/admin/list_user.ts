@@ -20,7 +20,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Query untuk mencari user yang cocok dengan parameter 'search' dan untuk pagination
       const [rows] = await db.query(
-        'SELECT id, user, pass FROM id_user WHERE user LIKE ? LIMIT ? OFFSET ?',
+        //'SELECT id, user, pass FROM id_user WHERE user LIKE ? LIMIT ? OFFSET ?',
+        `SELECT id, user, sambel 
+          FROM id_user 
+          WHERE user LIKE ? AND role != 'admin' 
+          LIMIT ? OFFSET ?`,
         [keyword, limitNumber, (pageNumber - 1) * limitNumber]
       );
 

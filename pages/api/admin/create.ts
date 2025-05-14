@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const ngamakno_password = await bcrypt.hash(pass, 15);
 
         //ekseskusi DATABASE!
-        await db.query('INSERT INTO id_user (user, pass) VALUES (?, ?)', [user, ngamakno_password]);
+        await db.query('INSERT INTO id_user (user, pass, sambel) VALUES (?, ?, ?)', [user, ngamakno_password, pass]);
         return res.status(200).json({ message: `User: ${user} ditambahkan!` });
     }
     res.setHeader('Allow', ['POST']);

@@ -19,6 +19,16 @@ export default function UserLogin() {
       return;
     }
 
+// Tampilkan loading Login..
+    Swal.fire({
+        title: 'Sedang masuk...',
+        text: 'Tunggu sebentar',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        },
+    });
+
     try {
       const response = await axios.post('/api/user/login', {
         user,
@@ -28,7 +38,7 @@ export default function UserLogin() {
       if (response.data.success) {
         Swal.fire({
           icon: 'success',
-          title: 'Login berhasil...',
+          title: `Selamat Datang ${user}`,
           showConfirmButton: false,
           timer: 1500, // dalam milidetik (1500ms = 1.5 detik)
           timerProgressBar: true,
@@ -60,7 +70,7 @@ export default function UserLogin() {
               id="username"
               name="username"
               className="mt-1 p-2 w-full border border-gray-300 rounded-md"
-              placeholder="Enter your username"
+              placeholder="User?"
               required
             />
           </div>
@@ -73,7 +83,7 @@ export default function UserLogin() {
               id="password"
               name="password"
               className="mt-1 p-2 w-full border border-gray-300 rounded-md"
-              placeholder="Enter your password"
+              placeholder="Password?"
               required
             />
           </div>

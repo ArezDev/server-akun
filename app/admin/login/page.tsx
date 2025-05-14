@@ -20,17 +20,40 @@ export default function Login() {
     }
 
     try {
+
+        // Tampilkan loading Login..
+          Swal.fire({
+            title: 'Sedang mencoba akses admin...',
+            text: 'Tunggu sebentar',
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
+          });
+      
       const response = await axios.post('/api/admin/login.admin', {
         user,
         pass,
       });
 
       if (response.data.user.role === 'admin') {
-            console.log('harusnya sudah login');
-            router.push('/admin'); // Redirect to dashboard if login is successful
-      } else {
-        Swal.fire('Error', 'Invalid credentials', 'error');
-      }
+          Swal.close();
+          Swal.fire({
+            icon: 'success',
+            title: 'Welcome Admin!',
+            showConfirmButton: false,
+            timer: 1000, // dalam milidetik (1500ms = 1.5 detik)
+            timerProgressBar: true,
+          });
+          router.push('/admin'); // Redirect to dashboard if login is successful
+          // setTimeout(() => {
+            
+          // }, 1000);
+          
+      } 
+      // else {
+      //   Swal.fire('Error', 'Invalid credentials', 'error');
+      // }
     } catch (error) {
       Swal.fire('Error', 'An error occurred. Please try again.', 'error');
     }

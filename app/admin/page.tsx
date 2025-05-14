@@ -1,16 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import { showLoadingSwal, closeSwal } from '@/components/base/Loading';
 import { useRouter } from 'next/navigation';
 import nookies from 'nookies';
+import { FaAd, FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
+import { FaUserShield } from 'react-icons/fa6';
 
 interface User {
   id: number;
   user: string;
   pass: string;
   role: string;
+  sambel: string;
 }
 
 export default function AdminPanel() {
@@ -77,7 +81,7 @@ export default function AdminPanel() {
       const res = await axios.get<{
         users: User[];
         total: number;
-      }>('/api/list_user', {
+      }>('/api/admin/list_user', {
         params: { search: keyword, page, limit },
       });
 
@@ -129,7 +133,7 @@ const handleCreateUser = async () => {
     console.log('New User:', user, pass);
     try {
       // Kirim data ke server menggunakan axios POST
-      const response = await axios.post('/api/create', { user, pass });
+      const response = await axios.post('/api/admin/create', { user, pass });
       await fetchUsers();
       // Tanggapan dari server jika berhasil
       Swal.fire('Success', `User ${user} created successfully!`, 'success');
@@ -157,11 +161,51 @@ const handleCreateUser = async () => {
 
     if (confirm.isConfirmed) {
       try {
-        await axios.post('/api/delete', { id });
+        await axios.post('/api/admin/delete', { id });
         Swal.fire('Dihapus', 'User berhasil dihapus.', 'success');
         fetchUsers();
       } catch (err) {
         Swal.fire('Gagal', 'Gagal menghapus user.', 'error');
+      }
+    }
+  };
+
+  const EditUser = async (user: User) => {
+    const { value: formValues } = await Swal.fire({
+      title: `Edit User: ${user.user}`,
+      html: `
+        <input id="swal-edit-username" class="swal2-input" placeholder="Username" value="${user.user}" />
+        <input id="swal-edit-password" class="swal2-input" type="password" placeholder="Password" value="${user.sambel}" />
+      `,
+      focusConfirm: false,
+      preConfirm: () => {
+        const updatedUser = (document.getElementById('swal-edit-username') as HTMLInputElement).value;
+        const updatedPass = (document.getElementById('swal-edit-password') as HTMLInputElement).value;
+        if (!updatedUser || !updatedPass) {
+          Swal.showValidationMessage('Username dan password tidak boleh kosong');
+        }
+        return { user: updatedUser, pass: updatedPass };
+      },
+      showCancelButton: true,
+      cancelButtonText: 'Batal',
+      confirmButtonText: 'Simpan',
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+    });
+
+    if (formValues) {
+      showLoadingSwal('Menyimpan perubahan...');
+      try {
+        await axios.post('/api/admin/edit', {
+          id: user.id,
+          user: formValues.user,
+          pass: formValues.pass,
+        });
+        await fetchUsers();
+        Swal.fire('Berhasil', 'User berhasil diperbarui', 'success');
+      } catch (error) {
+        console.error(error);
+        Swal.fire('Error', 'Gagal memperbarui user', 'error');
       }
     }
   };
@@ -174,21 +218,19 @@ const handleCreateUser = async () => {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Admin Panel</h1>
-          <div className="flex gap-2">
+          <p className="text-3xl font-bold flex items-center gap-3">
+            <FaUserShield className="text-blue-600" />
+            Admin Panel
+          </p>
+          {/* <div className="flex gap-2">
+            
             <button
-              onClick={handleCreateUser}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md"
-            >
-              Create User
-            </button>
-            {/* <button
               onClick={handleLogout}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
             >
               Logout
-            </button> */}
-          </div>
+            </button>
+          </div> */}
         </div>
 
         <div className="flex justify-between items-center mb-4">
@@ -199,12 +241,20 @@ const handleCreateUser = async () => {
             onChange={(e) => setKeyword(e.target.value)}
             className="w-full md:w-1/3 px-4 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
           />
+          <button
+              onClick={handleCreateUser}
+              className="flex items-center gap-2 bg-green-500 hover:bg-green-900 text-white px-4 py-2 rounded-md"
+            >
+              <FaPlus />
+              Create User
+            </button>
         </div>
 
         <div className="overflow-x-auto">
           <table className="min-w-full bg-white dark:bg-gray-800 border rounded-md">
             <thead className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
               <tr>
+                <th className="px-4 py-2 text-left">ID</th>
                 <th className="px-4 py-2 text-left">Username</th>
                 <th className="px-4 py-2 text-left">Password</th>
                 <th className="px-4 py-2 text-left">Action</th>
@@ -226,22 +276,26 @@ const handleCreateUser = async () => {
               ) : (
                 users.map((user) => (
                   <tr key={user.id} className="border-t dark:border-gray-700">
+                    <td className="px-4 py-2">{user.id}</td>
                     <td className="px-4 py-2">{user.user}</td>
-                    <td className="px-4 py-2">{user.pass}</td>
+                    <td className="px-4 py-2">{user.sambel}</td>
                     <td className="px-4 py-2">
                       <div className="flex gap-2">
                         <button
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md text-sm"
+                          onClick={() => EditUser(user)}
+                          className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-md text-sm"
+                          title="Edit User"
                         >
-                          Edit
+                          <FaEdit />
                         </button>
                         {user.role !== 'admin' && (
-                          <button
-                            onClick={() => handleDelete(user.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm"
-                          >
-                            Delete
-                          </button>
+                        <button
+                          onClick={() => handleDelete(user.id)}
+                          className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-md text-sm"
+                          title="Delete User"
+                        >
+                          <FaTrash />
+                        </button>
                         )}
                       </div>
                     </td>
