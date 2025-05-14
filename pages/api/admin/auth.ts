@@ -21,6 +21,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const decoded = jwt.verify(token, SECRET_KEY as string);
     return res.status(200).json({ success: true, user: decoded });
   } catch (error) {
-    return res.status(401).json({ success: false, message: 'Token tidak valid atau expired' });
+    return res.status(401).json({ success: false, message: 'Token tidak valid atau expired', error });
   }
 }

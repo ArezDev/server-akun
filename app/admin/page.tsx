@@ -41,10 +41,13 @@ export default function AdminPanel() {
       }
 
       return true;
-    } catch (error) {
-      Swal.fire('Unauthorized', 'Token tidak valid atau expired', 'error');
-      router.push('/admin/login');
-      return false;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+        console.log(error.message);
+        Swal.fire('Akses Ditolak', 'Kamu bukan admin!', 'error');
+        router.push('/admin/login');
+        return false;
+      }
     }
     
   };
@@ -66,9 +69,13 @@ export default function AdminPanel() {
           Swal.fire('Akses Ditolak', 'Kamu bukan admin!', 'error');
           router.push('/admin/login');
         }
-      } catch (err) {
-        Swal.fire('Unauthorized', 'Silakan login terlebih dahulu.', 'error');
-        router.push('/admin/login');
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+          console.log(error.message);
+          Swal.fire('Unauthorized', 'Silakan login terlebih dahulu.', 'error');
+          router.push('/admin/login');
+        }
+        
       }
     };
 
@@ -164,8 +171,12 @@ const handleCreateUser = async () => {
         await axios.post('/api/admin/delete', { id });
         Swal.fire('Dihapus', 'User berhasil dihapus.', 'success');
         fetchUsers();
-      } catch (err) {
-        Swal.fire('Gagal', 'Gagal menghapus user.', 'error');
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+          console.log(error.message);
+          Swal.fire('Gagal', 'Gagal menghapus user.', 'error');
+        }
+        
       }
     }
   };
@@ -208,10 +219,6 @@ const handleCreateUser = async () => {
         Swal.fire('Error', 'Gagal memperbarui user', 'error');
       }
     }
-  };
-
-  const handleLogout = async () => {
-    await axios.post('/api/logout');
   };
 
   return (

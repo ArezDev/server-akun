@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import Navigasi from '@/components/Header';
 import { useRouter } from 'next/navigation';
 import { FaUpload } from 'react-icons/fa6';
 import NavigasiUpload from '@/components/style/FormUpload';
@@ -27,8 +26,9 @@ export default function UploadPage() {
                     return;
                 }
                 setUserData(user);
-            } catch (error: any) {
-                if (error.response && error.response.status === 401) {
+            } catch (error: unknown) {
+                if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+                    console.log(error.message);
                     Swal.fire('Unauthorized', error.response.data.message, 'error');
                     router.push('/');
                 }
@@ -44,8 +44,9 @@ export default function UploadPage() {
 
         try {
             let totalUploaded = 0;
+            let cokis;
 
-            for (let cokis of cokisList) {
+            for (cokis of cokisList) {
                 const response = await axios.post('/api/user/upload_akun', {
                     cokis,
                     userId: userData?.id
@@ -64,7 +65,11 @@ export default function UploadPage() {
             setText('');
             setUploadCount(totalUploaded);
         } catch (error) {
-            Swal.fire('Gagal', 'Terjadi kesalahan saat mengupload akun.', 'error');
+            if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+                console.log(error.message);
+                Swal.fire('Gagal', 'Terjadi kesalahan saat mengupload akun.', 'error');
+            }
+            
         } finally {
             setIsLoading(false); // 👉 Stop loading
         }

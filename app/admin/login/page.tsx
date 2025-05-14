@@ -54,8 +54,13 @@ export default function Login() {
       // else {
       //   Swal.fire('Error', 'Invalid credentials', 'error');
       // }
-    } catch (error) {
-      Swal.fire('Error', 'An error occurred. Please try again.', 'error');
+    } catch (error: unknown) {
+
+      if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+        //Swal.fire('Error', 'An error occurred. Please try again.', 'error');
+        Swal.fire('Error', error.message, 'error');
+      }
+      
     }
   };
 

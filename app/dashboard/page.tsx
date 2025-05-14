@@ -14,7 +14,6 @@ const Dashboard: React.FC = () => {
   const [accounts, setAccounts] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [userData, setUserData] = useState<{ id: number; user: string; role: string } | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
   const isLoading = useRef(false);
   
   useEffect(() => {
@@ -85,13 +84,13 @@ const Dashboard: React.FC = () => {
   //handle WebSocket
   socket.on('connect', () => {
       console.log('Connected to WebSocket server' );
-      setIsConnected(true);
+      //setIsConnected(true);
     });
 
     // Listen for disconnect event
     socket.on('disconnect', () => {
       console.log('Disconnected from WebSocket server');
-      setIsConnected(false);
+      //setIsConnected(false);
     });
 
 // 🔐 Verifikasi user
@@ -106,8 +105,9 @@ const Dashboard: React.FC = () => {
       }
       setUserData(user);
       fetchAccounts();
-    } catch (error: any) {
-      if (error.response && error.response.status === 401) {
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+        console.log(error.message);
         Swal.fire('Unauthorized', error.response.data.message, 'error');
         router.push('/');
         return false;
@@ -172,8 +172,12 @@ const Dashboard: React.FC = () => {
         await axios.delete('/api/user/akun', { params: { id: getUserId.data.user.id } });
         Swal.fire('Berhasil', 'Semua akun telah dihapus.', 'success');
         setAccounts('');
-      } catch (err) {
-        Swal.fire('Gagal', 'Tidak dapat menghapus akun.', 'error');
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+          console.log(error.message);
+          Swal.fire('Gagal', 'Tidak dapat menghapus akun.', 'error');
+        }
+        
       }
     }
   };
