@@ -1,6 +1,5 @@
-import axios from 'axios';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { FaUser, FaArrowCircleLeft } from 'react-icons/fa';
 
 interface CardListProps {

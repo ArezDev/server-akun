@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { showLoadingSwal, closeSwal } from '@/components/base/Loading';
+import { showLoadingSwal } from '@/components/base/Loading';
 import { useRouter } from 'next/navigation';
 import nookies from 'nookies';
-import { FaAd, FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
+import { FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
 import { FaUserShield } from 'react-icons/fa6';
 
 interface User {

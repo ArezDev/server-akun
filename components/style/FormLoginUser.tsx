@@ -47,9 +47,9 @@ export default function UserLogin() {
       } else {
         Swal.fire('Error', response.data.message, 'error');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       Swal.fire('Error', 'An error occurred. Please try again.', 'error');
-      if (error.response && error.response.status === 401) {
+      if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
         Swal.fire('Login Gagal', error.response.data.message || 'Unauthorized', 'error');
       } else {
         Swal.fire('Error', 'An error occurred. Please try again.', 'error');
