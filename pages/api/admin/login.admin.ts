@@ -36,6 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     //   return res.status(401).json({ message: 'Username tidak ditemukan.' });
     // }
     //const userData = rows[0];
+    
     const dataFounder: { 
         id: string; 
         username: string; 
