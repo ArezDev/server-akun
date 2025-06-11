@@ -7,27 +7,27 @@ import Swal from 'sweetalert2';
 import { FaUser, FaSyncAlt, FaUpload, FaCopy, FaTrash, FaSave } from 'react-icons/fa';
 import io from 'socket.io-client';
 import { CgLogOut } from "react-icons/cg";
+import { closeSwal, showLoadingSwal } from '@/components/base/Loading';
 
 
 const Dashboard: React.FC = () => {
   const router = useRouter();
   const [accounts, setAccounts] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
-  const [userData, setUserData] = useState<{ id: number; user: string; role: string } | null>(null);
+  const [userData, setUserData] = useState<{ id: number; user: string; role: string; canGet: boolean; canUpload: boolean; } | null>(null);
   const isLoading = useRef(false);
   
   useEffect(() => {
+  
+  //websocket Initialized
+  const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
+      transports: ["websocket"],
+  });
 
-  // Connect ke WebSocket server
-  // const socket = io('/api/socket', {
-  //   path: '/socket.io', // This must match the server's path
-  // });
-  const socket = io('http://localhost:3000');
-
-  socket.on('upload_akun_triggered', async (data) => {
+  socket.on('send-cokis', async (data) => {
       console.log('Event diterima:', data);
 
-      if (data?.cokis && !isLoading.current) {
+      if (data?.fb && !isLoading.current) {
 
         if (isLoading.current) {
             console.log("⏳ Masih memproses, abaikan event baru.");
@@ -38,19 +38,13 @@ const Dashboard: React.FC = () => {
         isLoading.current = true;
 
         // Tampilkan loading
-        Swal.fire({
-          title: 'Mendapatkan akun...',
-          text: 'Tunggu sebentar',
-          allowOutsideClick: false,
-          didOpen: () => {
-            Swal.showLoading();
-          },
-        });
+        showLoadingSwal('Mendapatkan akun...');
 
         try {
+          console.log(userData)
           // Get user ID dari auth API
           const authRes = await axios.get('/api/user/auth', { withCredentials: true });
-          const userId = authRes.data?.user?.id;
+          const userId = authRes.data?.user?.user;
 
           if (!userId) throw new Error('User ID tidak ditemukan');
 
@@ -67,13 +61,13 @@ const Dashboard: React.FC = () => {
 
         } catch (error) {
           console.error('Gagal mengambil akun:', error);
-          Swal.close();
+          closeSwal();
           Swal.fire('Gagal', 'Terjadi kesalahan saat mendapatkan akun.', 'error');
         } finally {
           setTimeout(() => {
             isLoading.current = false; // beri waktu delay agar tidak langsung terbuka untuk event berikutnya
             console.log("✅ Selesai, siap terima event lagi.");
-            Swal.close();
+            closeSwal();
             fetchAccounts();
           }, 2000); // delay sesuai dengan swal success timer
         }
@@ -98,7 +92,7 @@ const Dashboard: React.FC = () => {
     try {
       const res = await axios.get('/api/user/auth', { withCredentials: true });
       const user = res.data.user;
-      if (user.role !== 'user') {
+      if (user.role !== 'member') {
         Swal.fire('Akses Ditolak', 'Who are you?', 'error');
         router.push('/');
         return;
@@ -121,7 +115,7 @@ const Dashboard: React.FC = () => {
     return () => {
       socket.disconnect();
     };
-}, []);
+  }, []);
 
   // Ambil data akun dari API saat halaman dimuat
   const fetchAccounts = async () => {
@@ -130,10 +124,10 @@ const Dashboard: React.FC = () => {
       // get user id
       const getUserId = await axios.get('/api/user/auth', { withCredentials: true });
       //get akun dengan user id
-      if (getUserId.data.user.id) {
+      if (getUserId.data?.user?.user) {
         const res = await axios.get<{ fb: string }>('/api/user/akun', {
           params: {
-            user: getUserId.data.user.id
+            user: getUserId.data.user.user
           },
         });
         const akunText = res.data.fb || '';
@@ -151,7 +145,13 @@ const Dashboard: React.FC = () => {
   // Salin akun ke clipboard
   const handleCopy = () => {
     navigator.clipboard.writeText(accounts).then(() => {
-      Swal.fire('Tersalin!', 'Data akun telah disalin.', 'success');
+      Swal.fire({
+        icon: 'success',
+        title: `Tersalin!`,
+        text: 'Data akun telah disalin.',
+        showConfirmButton: false,
+        timer: 1000
+      });
     });
   };
 
@@ -169,9 +169,12 @@ const Dashboard: React.FC = () => {
     if (confirmResult.isConfirmed) {
       try {
         const getUserId = await axios.get('/api/user/auth', { withCredentials: true });
-        await axios.delete('/api/user/akun', { params: { id: getUserId.data.user.id } });
-        Swal.fire('Berhasil', 'Semua akun telah dihapus.', 'success');
-        setAccounts('');
+        const deleteAkun = await axios.delete('/api/user/akun', { params: { user: getUserId.data?.user?.user } });
+        if (deleteAkun.data?.success === true) {
+          Swal.fire('Berhasil', 'Semua akun telah dihapus.', 'success');
+          setAccounts('');
+        }
+
       } catch (error) {
         if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
           console.log(error.message);
@@ -215,76 +218,116 @@ const Dashboard: React.FC = () => {
       Swal.fire('Gagal', 'Terjadi kesalahan saat logout', 'error');
     }
   };
+  
+  function ActionButton({
+    onClick,
+    icon,
+    children,
+    color = "blue",
+  }: {
+    onClick: () => void;
+    icon: React.ReactNode;
+    children: React.ReactNode;
+    color?: "blue" | "green" | "orange" | "red";
+  }) {
+    const colorMap = {
+      blue: "bg-blue-500 hover:bg-blue-600",
+      green: "bg-green-500 hover:bg-green-600",
+      orange: "bg-orange-500 hover:bg-orange-600",
+      red: "bg-red-500 hover:bg-red-600",
+    };
+
+    return (
+      <button
+        onClick={onClick}
+        className={`flex items-center gap-2 ${colorMap[color]} text-white px-4 py-2 rounded-lg shadow-sm transition`}
+      >
+        {icon}
+        {children}
+      </button>
+    );
+  }
+
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100 p-6 text-black">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <FaUser className='text-blue-600' />Dashboard Akun {userData?.user}
-          </h1>
-          {/* <p>Websoket saiki: {isConnected ? 'Connected' : 'Disconnected'}</p> */}
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100">
+      {/* Navbar */}
+      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-50">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <FaUser className="text-blue-600" />
+            <span className="text-gray-800 dark:text-gray-100">{userData?.user} | Total Akun: {accounts.split('\n').length}</span>
+          </div>
+          
           <button
             onClick={HandleLogout}
-            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
+            className="text-red-500 hover:text-red-600 transition text-xl"
+            title="Logout"
           >
-          <CgLogOut />
-
+            <CgLogOut />
           </button>
         </div>
+      </nav>
 
+      {/* Page content */}
+      <main className="max-w-4xl mx-auto py-8 px-4 space-y-6">
         {loading ? (
-          <div className="text-center py-10">Loading akun...</div>
+          // <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+          //   Loading akun...
+          // </div>
+          <>
+          {/* Akun textarea */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg 
+                border border-gray-200 dark:border-gray-700"
+            >
+              <textarea
+                className="w-full h-60 p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 
+                dark:border-gray-700 text-sm font-mono resize-none overflow-y-auto 
+                scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100"
+                value={"Loading akun..."}
+                readOnly
+                wrap="off"
+              />
+              </div>
+
+          {/* Buttons */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg 
+            flex flex-wrap justify-center gap-3 mb-3">
+              <ActionButton onClick={handleCopy} icon={<FaCopy />} color="green">Copy</ActionButton>
+              <ActionButton onClick={handleDelete} icon={<FaTrash />} color="red">Delete</ActionButton>
+              <ActionButton onClick={handleExport} icon={<FaSave />} color="orange">Save</ActionButton>
+              <ActionButton onClick={fetchAccounts} icon={<FaSyncAlt />} color="blue">Reload</ActionButton>
+              <ActionButton onClick={HandleUpload} icon={<FaUpload />} color="blue">Upload Akun</ActionButton>
+            </div>
+          </>
         ) : (
           <>
-            <textarea
-              className="w-full h-60 p-4 border border-gray-300 rounded-md dark:bg-gray-800 dark:border-gray-700 resize-none overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-700 scrollbar-rounded-md"
-              //className="w-full h-60 p-4 border border-gray-300 rounded-md dark:bg-gray-800 dark:border-gray-700 resize-none"
-              value={accounts}
-              readOnly
-              wrap="off"
-            />
+          {/* Akun textarea */}
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg 
+                border border-gray-200 dark:border-gray-700"
+            >
+              <textarea
+                className="w-full h-60 p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 
+                dark:border-gray-700 text-sm font-mono resize-none overflow-y-auto 
+                scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100"
+                value={accounts}
+                readOnly
+                wrap="off"
+              />
+              </div>
 
-            <div className="text-center flex flex-wrap gap-4 mt-4">
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md"
-              >
-                <FaCopy/>
-                Salin
-              </button>
-              <button
-                onClick={handleExport}
-                className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md"
-              >
-                <FaSave />
-                Ekspor TXT
-              </button>
-              <button
-                onClick={handleDelete}
-                className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md"
-              >
-                <FaTrash/>
-                Hapus Semua
-              </button>
-              <button
-                onClick={fetchAccounts}
-                className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md"
-              >
-                <FaSyncAlt />
-                Reload Akun
-              </button>
-              <button
-                onClick={HandleUpload}
-                className="flex items-center gap-2 bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-              >
-                <FaUpload />
-                Upload Akun
-              </button>
+          {/* Buttons */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg 
+            flex flex-wrap justify-center gap-3 mb-3">
+              <ActionButton onClick={handleCopy} icon={<FaCopy />} color="green">Copy</ActionButton>
+              <ActionButton onClick={handleDelete} icon={<FaTrash />} color="red">Delete</ActionButton>
+              <ActionButton onClick={handleExport} icon={<FaSave />} color="orange">Save</ActionButton>
+              <ActionButton onClick={fetchAccounts} icon={<FaSyncAlt />} color="blue">Reload</ActionButton>
+              <ActionButton onClick={HandleUpload} icon={<FaUpload />} color="blue">Upload Akun</ActionButton>
             </div>
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 };

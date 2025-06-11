@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import bcrypt from "bcryptjs";
-import db from "@/config/db";
+import { db } from "@/config/firebase";
 import nookies from 'nookies';
 import { RowDataPacket } from 'mysql2';
 import jwt from 'jsonwebtoken';
@@ -23,24 +23,52 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-      // 🔍 Ambil user berdasarkan username saja
-      const [rows] = await db.query<UserData[]>(
-        'SELECT `id`, `user`, `pass`, `role` FROM `id_user` WHERE `user` = ?',
-        [user]
-      );
+      // Mysql
+      // const [rows] = await db.query<UserData[]>(
+      //   'SELECT `id`, `user`, `pass`, `role` FROM `id_user` WHERE `user` = ?',
+      //   [user]
+      // );
+      // if (!Array.isArray(rows) || rows.length === 0) {
+      //   return res.status(401).json({ success: false, message: "User tidak ditemukan." });
+      // }
+      // if (rows[0].role === 'admin') {
+      //   return res.status(401).json({ success: false, message: "Hey anda admin ngapain kesini..!" });
+      // }
+      // const userData = rows[0];
 
-      if (!Array.isArray(rows) || rows.length === 0) {
-        return res.status(401).json({ success: false, message: "User tidak ditemukan." });
+      const whereUser = await db.collection('users')
+      .where('username', '==', user).where('role', '==', 'member')
+      .limit(1)
+      .get();
+      if (whereUser.empty) {
+        return res.status(401).json({ success: false, message: "Username tidak ditemukan." });
       }
-
-      if (rows[0].role === 'admin') {
-        return res.status(401).json({ success: false, message: "Hey anda admin ngapain kesini..!" });
-      }
-
-      const userData = rows[0];
+      const dataUser: { 
+        id: string; 
+        username: string; 
+        password: string; 
+        role: string;
+        canGet: boolean;
+        canUpload: boolean;
+      }[] = [];
+      const foundUser = await db.collection('users')
+      .where('username', '==', user).where('role', '==', 'member')
+      .limit(1)
+      .get();
+      foundUser.forEach((docs)=> {
+        const data = docs.data();
+        dataUser.push({
+          id: docs.id,
+          username: data.username,
+          password: data.password,
+          role: data.role,
+          canGet: data.canGet,
+          canUpload: data.canUpload
+        });
+      });
 
       // ✅ Verifikasi password dari server!
-      const isMatch = await bcrypt.compare(pass, userData.pass);
+      const isMatch = await bcrypt.compare(pass, dataUser[0].password);
 
       if (!isMatch) {
         return res.status(401).json({ success: false, message: "Password salah." });
@@ -49,9 +77,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // 🔐 Buat token JWT
       const token = jwt.sign(
         {
-          id: userData.id,
-          user: userData.user,
-          role: userData.role,
+          id: dataUser[0].id,
+          user: dataUser[0].username,
+          role: dataUser[0].role,
+          canUpload: dataUser[0].canUpload,
+          canGet: dataUser[0].canGet,
         },
         SECRET_KEY as string,
         { expiresIn: '30m' } // Token valid 30 menit
@@ -61,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       nookies.set({ res }, 'sessionid', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 30 * 60, // 3 menit
+        maxAge: 30 * 60, // 30 menit
         path: '/',
       });
 
@@ -70,9 +100,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         message: 'Login user berhasil',
         token,
         user: {
-          id: userData.id,
-          user: userData.user,
-          role: userData.role,
+          id: dataUser[0].id,
+          user: dataUser[0].username,
+          role: dataUser[0].role,
+          canUpload: dataUser[0].canUpload,
+          canGet: dataUser[0].canGet,
         },
       });
 

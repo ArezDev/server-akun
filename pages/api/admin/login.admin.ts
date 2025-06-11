@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import db from "@/config/db";
+import { db } from '@/config/firebase';
 import { RowDataPacket } from 'mysql2';
 import nookies from 'nookies';
 
@@ -30,17 +30,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Cari user berdasarkan username
-    const [rows] = await db.query<userData[]>('SELECT * FROM id_user WHERE user = ?', [user]);
+    // Mysql
+    // const [rows] = await db.query<userData[]>('SELECT * FROM id_user WHERE user = ?', [user]);
+    // if (!Array.isArray(rows) || rows.length === 0) {
+    //   return res.status(401).json({ message: 'Username tidak ditemukan.' });
+    // }
+    //const userData = rows[0];
+    const dataFounder: { 
+        id: string; 
+        username: string; 
+        password: string; 
+        role: string;
+    }[] = [];
+    const whoAreYou = await db.collection('users').where('username', '==', user).limit(1).get();
+    whoAreYou.forEach((docs) => {
+      const data = docs.data();
+      dataFounder.push({
+        id: docs.id,
+        username: data.username,
+        password: data.password,
+        role: data.role,
+      });
+    });
 
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return res.status(401).json({ message: 'Username tidak ditemukan.' });
+    if (whoAreYou.empty) {
+      return res.status(401).json({ message: 'Password salah.' });
     }
 
-    const userData = rows[0];
-
     // verifikasi password yang dihash..!
-    const isMatch = await bcrypt.compare(pass, userData.pass);
+    const isMatch = await bcrypt.compare(pass, dataFounder[0].password);
 
     if (!isMatch) {
       return res.status(401).json({ message: 'Password salah.' });
@@ -49,9 +67,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // ✅ Buat token JWT
     const token = jwt.sign(
       {
-        id: userData.id,
-        user: userData.user,
-        role: userData.role,
+        id: dataFounder[0].id,
+        user: dataFounder[0].username,
+        role: dataFounder[0].role,
       },
       SECRET_KEY as string,
       { expiresIn: '3m' } // Token valid 3 menit
@@ -67,14 +85,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Kirim token ke client
     return res.status(200).json({
-      message: 'Login berhasil',
-      token, // ⬅️ ini token-nya
+      success: true,
       user: {
-        id: userData.id,
-        user: userData.user,
-        role: userData.role,
+        id: dataFounder[0].id,
+        user: dataFounder[0].username,
+        role: dataFounder[0].role,
       },
+      token,
     });
+
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ message: 'Terjadi kesalahan di server.' });

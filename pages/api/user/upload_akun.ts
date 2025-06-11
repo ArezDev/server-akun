@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import db from "@/config/db";
+import { db } from "@/config/firebase";
+import { Timestamp } from 'firebase-admin/firestore';
+import axios from 'axios';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -8,49 +10,63 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // Validasi input
       if (!cokis || !userId) {
-        return res.status(400).json({ message: 'userId tidak ditemukan...!' });
+        return res.status(401).json({ message: 'userId tidak ditemukan...!' });
       }
 
-      // Buat tanggal saat ini
-      //const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
+      //Mysql
+       const now = new Date();
+       const year = now.getFullYear();
+       const month = String(now.getMonth() + 1).padStart(2, '0');
+       const day = String(now.getDate()).padStart(2, '0');
+       let hours = now.getHours();
+       const minutes = String(now.getMinutes()).padStart(2, '0');
+       const seconds = String(now.getSeconds()).padStart(2, '0');
+       const today = `${year}-${month}-${day}:${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+      // const [result] = await db.query('INSERT INTO FB (cokis, id_user, create_at) VALUES (?, ?, ?)', [cokis, userId, today]);
+      // const [result2] = await db.query('INSERT INTO FB_Live (cokis, id_user, create_at) VALUES (?, ?, ?)', [cokis, userId, today]);
+      // if ('affectedRows' in result && result.affectedRows > 0 || 'affectedRows' in result2 && result2.affectedRows > 0) {
+      // // Trigger WebSocket ketika ada request POST ke /api/user/upload_akun
+      // const io = (res.socket as any).server.io;
+      // io.emit('upload_akun_triggered', { message: 'Akun data uploaded', cokis, userId });
 
-      let hours = now.getHours();
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      // const ampm = hours >= 12 ? 'PM' : 'AM';
-      // hours = hours % 12;
-      // hours = hours ? hours : 12; // jam 0 jadi 12
+      //   //kirim sukses upload cokis!
+      //   return res.status(200).json({ 
+      //     success: true, 
+      //     cokis: cokis, 
+      //     message: 'Cokis sukses di tambahkan' 
+      //   });
 
-      const today = `${year}-${month}-${day}:${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+      // } else {
+      //   return res.status(500).json({
+      //     success: false,
+      //     message: 'Gagal menambahkan cokis',
+      //   });
+      // }
 
-      console.log(today); // ➜ contoh: 2025-05-14 : 02:30 PM
+      const check_permissions = await db.collection('users')
+      .where('username', '==', userId).where('canUpload', '==', true).get();
 
-      const [result] = await db.query('INSERT INTO FB (cokis, id_user, create_at) VALUES (?, ?, ?)', [cokis, userId, today]);
-      const [result2] = await db.query('INSERT INTO FB_Live (cokis, id_user, create_at) VALUES (?, ?, ?)', [cokis, userId, today]);
-      if ('affectedRows' in result && result.affectedRows > 0 || 'affectedRows' in result2 && result2.affectedRows > 0) {
-        
-        // Trigger WebSocket ketika ada request POST ke /api/user/upload_akun
-        const io = (res.socket as any).server.io;
-        io.emit('upload_akun_triggered', { message: 'Akun data uploaded', cokis, userId });
-
-        //kirim sukses upload cokis!
-        return res.status(200).json({ 
-          success: true, 
-          cokis: cokis, 
-          message: 'Cokis sukses di tambahkan' 
-        });
-
-      } else {
-        return res.status(500).json({
-          success: false,
-          message: 'Gagal menambahkan cokis',
-        });
+      if (check_permissions.empty) {
+        return res.status(401).json({error: 'You dont have permissions to access..'});
       }
+
+      //const docId = `FB-${userId}`;
+      const sendFB = db.collection('fb_akun').doc();
+      sendFB.set({
+        fbne: userId,
+        cokis: cokis,
+        created_at: Timestamp.now()
+      },{merge:true});
+      // Kirim ke socket
+      await axios.post(`${process.env.NEXT_PUBLIC_SOCKET_URL}/broadcast`, {
+        event: "send-cokis",
+        payload: {
+          message: `User: ${userId} send cokis..`,
+          fb: cokis,
+        }
+      });
       
+      return res.status(200).json({success: true, cokis: cokis});
     }
 
     res.setHeader('Allow', ['POST']);

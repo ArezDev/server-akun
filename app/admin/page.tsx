@@ -10,11 +10,13 @@ import { FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
 import { FaUserShield } from 'react-icons/fa6';
 
 interface User {
-  id: number;
-  user: string;
-  pass: string;
+  id: any;
+  username: string;
+  password: string;
   role: string;
-  sambel: string;
+  canUpload: boolean;
+  canGet: boolean;
+  created_at: any;
 }
 
 export default function AdminPanel() {
@@ -112,90 +114,178 @@ export default function AdminPanel() {
     checkAndFetch();
   }, [page, keyword]);
 
-const handleCreateUser = async () => {
-  const { value: formValues } = await Swal.fire({
-    title: 'Create User',
-    html: `
-      <input id="swal-input-username" class="swal2-input" placeholder="Username" />
-      <input id="swal-input-password" class="swal2-input" type="password" placeholder="Password" />
-    `,
-    focusConfirm: false,
-    preConfirm: () => {
-      const user = (document.getElementById('swal-input-username') as HTMLInputElement).value;
-      const pass = (document.getElementById('swal-input-password') as HTMLInputElement).value;
-      if (!user || !pass) {
-        Swal.showValidationMessage('Username and password are required');
-      }
-      return { user, pass };
-    },
-    showCancelButton: true,
-    cancelButtonText: 'Cancel',
-    confirmButtonText: 'Create',
-    confirmButtonColor: '#3085d6',
-    cancelButtonColor: '#d33',
-  });
+  const handleCreateUser = async () => {
+  // const { value: formValues } = await Swal.fire({
+  //     title: 'Create User',
+  //     html: `
+  //       <input id="swal-input-username" class="swal2-input" placeholder="Username" />
+  //       <input id="swal-input-password" class="swal2-input" type="password" placeholder="Password" />
+  //     `,
+  //     focusConfirm: false,
+  //     preConfirm: () => {
+  //       const user = (document.getElementById('swal-input-username') as HTMLInputElement).value;
+  //       const pass = (document.getElementById('swal-input-password') as HTMLInputElement).value;
+  //       if (!user || !pass) {
+  //         Swal.showValidationMessage('Username and password are required');
+  //       }
+  //       return { user, pass };
+  //     },
+  //     showCancelButton: true,
+  //     cancelButtonText: 'Cancel',
+  //     confirmButtonText: 'Create',
+  //     confirmButtonColor: '#3085d6',
+  //     cancelButtonColor: '#d33',
+  //   });
 
-  if (formValues) {
-    const { user, pass } = formValues;
-    console.log('New User:', user, pass);
-    try {
-      // Kirim data ke server menggunakan axios POST
-      const response = await axios.post('/api/admin/create', { user, pass });
-      await fetchUsers();
-      // Tanggapan dari server jika berhasil
-      Swal.fire('Success', `User ${user} created successfully!`, 'success');
-      console.log(response.data); // Response dari server
-    } catch (error) {
-      // Menangani error jika terjadi
-      Swal.fire('Error', 'Failed to create user', 'error');
-      console.error(error);
-    }
-  }
-};
+  //   if (formValues) {
+  //     const { user, pass } = formValues;
+  //     showLoadingSwal();
+  //     try {
+  //       // Kirim data ke server menggunakan axios POST
+  //       const response = await axios.post('/api/admin/create', { user, pass });
+  //       if (response.data?.success === true) {
+  //         Swal.fire('Success', `User ${user} created successfully!`, 'success');
+  //         await fetchUsers();
+  //       }
+  //     } catch (error: unknown) {
+  //       // Menangani error jika terjadi
+  //       Swal.fire('Error', 'Failed to create user!', 'error');
+  //     }
+  //   }
+    const { value: formValues } = await Swal.fire({
+      title: 'Create User',
+      html: `
+        <input id="swal-input-username" class="swal2-input" placeholder="Username" />
+        <input id="swal-input-password" class="swal2-input" type="password" placeholder="Password" />
+        
+        <div style="display: flex; justify-content: center; align-items: center; gap: 2rem; margin-top: 1rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+            <input type="checkbox" id="swal-can-upload" ${false ? 'checked' : ''} />
+            <span>Upload Akun</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+            <input type="checkbox" id="swal-can-get" ${false ? 'checked' : ''} />
+            <span>Get Akun</span>
+          </label>
+        </div>
+      `,
+      focusConfirm: false,
+      preConfirm: () => {
+        const user = (document.getElementById('swal-input-username') as HTMLInputElement).value;
+        const pass = (document.getElementById('swal-input-password') as HTMLInputElement).value;
+        const canUpload = (document.getElementById('swal-can-upload') as HTMLInputElement).checked;
+        const canGet = (document.getElementById('swal-can-get') as HTMLInputElement).checked;
 
-// Call handleCreateUser on button click or wherever needed
+        if (!user || !pass) {
+          Swal.showValidationMessage('Username dan Password wajib diisi');
+        }
 
-
-  const handleDelete = async (id: number) => {
-    const confirm = await Swal.fire({
-      title: 'Hapus User?',
-      text: 'User akan dihapus permanen.',
-      icon: 'warning',
+        return { user, pass, canUpload, canGet };
+      },
       showCancelButton: true,
-      confirmButtonText: 'Ya, hapus!',
       cancelButtonText: 'Batal',
+      confirmButtonText: 'Create',
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
     });
 
-    if (confirm.isConfirmed) {
+    if (formValues) {
+      const { user, pass, canUpload, canGet } = formValues;
+      showLoadingSwal();
       try {
-        await axios.post('/api/admin/delete', { id });
-        Swal.fire('Dihapus', 'User berhasil dihapus.', 'success');
-        fetchUsers();
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
-          console.log(error.message);
-          Swal.fire('Gagal', 'Gagal menghapus user.', 'error');
+        const response = await axios.post('/api/admin/create', {
+          user,
+          pass,
+          canUpload,
+          canGet,
+        });
+        if (response.data?.success === true) {
+          Swal.fire('Success', `User ${user} berhasil dibuat`, 'success');
+          await fetchUsers();
         }
-        
+      } catch (error) {
+        Swal.fire('Error', 'Gagal membuat user!', 'error');
       }
     }
+
   };
 
   const EditUser = async (user: User) => {
+    // const { value: formValues } = await Swal.fire({
+    //   title: `Edit User: ${user.username}`,
+    //   html: `
+    //     <input id="swal-edit-username" class="swal2-input" placeholder="Username" value="${user.username}" />
+    //     <input id="swal-edit-password" class="swal2-input" type="password" placeholder="Optional" value="" />
+    //   `,
+    //   focusConfirm: false,
+    //   preConfirm: () => {
+    //     const updatedUser = (document.getElementById('swal-edit-username') as HTMLInputElement).value;
+    //     const updatedPass = (document.getElementById('swal-edit-password') as HTMLInputElement).value;
+    //     if (!updatedUser) {
+    //       Swal.showValidationMessage('Username tidak boleh kosong');
+    //     }
+    //     return { user: updatedUser, pass: updatedPass };
+    //   },
+    //   showCancelButton: true,
+    //   cancelButtonText: 'Batal',
+    //   confirmButtonText: 'Simpan',
+    //   confirmButtonColor: '#3085d6',
+    //   cancelButtonColor: '#d33',
+    // });
+
+    // if (formValues) {
+    //   showLoadingSwal('Menyimpan perubahan...');
+    //   try {
+    //     const editUser = await axios.post('/api/admin/edit', {
+    //       id: user.id,
+    //       user: formValues.user,
+    //       pass: formValues.pass,
+    //     });
+    //     if (editUser.data?.success === true) {
+    //       Swal.fire('Berhasil', 'User berhasil diperbarui', 'success');
+    //       await fetchUsers();
+    //     }
+        
+    //   } catch (error) {
+    //     console.error(error);
+    //     Swal.fire('Error', 'Gagal memperbarui user', 'error');
+    //   }
+    // }
+
     const { value: formValues } = await Swal.fire({
-      title: `Edit User: ${user.user}`,
+      title: `Edit User: ${user.username}`,
       html: `
-        <input id="swal-edit-username" class="swal2-input" placeholder="Username" value="${user.user}" />
-        <input id="swal-edit-password" class="swal2-input" type="password" placeholder="Password" value="${user.sambel}" />
+        <input id="swal-edit-username" class="swal2-input" placeholder="Username" value="${user.username}" />
+        <input id="swal-edit-password" class="swal2-input" type="password" placeholder="Password (Optional)" value="" />
+
+        <div style="display: flex; justify-content: center; align-items: center; gap: 2rem; margin-top: 1rem;">
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+            <input type="checkbox" id="swal-can-upload" ${user.canUpload ? 'checked' : ''} />
+            <span>Upload Akun</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem;">
+            <input type="checkbox" id="swal-can-get" ${user.canGet ? 'checked' : ''} />
+            <span>Get Akun</span>
+          </label>
+        </div>
       `,
       focusConfirm: false,
       preConfirm: () => {
         const updatedUser = (document.getElementById('swal-edit-username') as HTMLInputElement).value;
         const updatedPass = (document.getElementById('swal-edit-password') as HTMLInputElement).value;
-        if (!updatedUser || !updatedPass) {
-          Swal.showValidationMessage('Username dan password tidak boleh kosong');
+        const canUpload = (document.getElementById('swal-can-upload') as HTMLInputElement).checked;
+        const canGet = (document.getElementById('swal-can-get') as HTMLInputElement).checked;
+
+        if (!updatedUser) {
+          Swal.showValidationMessage('Username tidak boleh kosong');
         }
-        return { user: updatedUser, pass: updatedPass };
+
+        return {
+          user: updatedUser,
+          pass: updatedPass,
+          canUpload,
+          canGet,
+        };
       },
       showCancelButton: true,
       cancelButtonText: 'Batal',
@@ -207,16 +297,49 @@ const handleCreateUser = async () => {
     if (formValues) {
       showLoadingSwal('Menyimpan perubahan...');
       try {
-        await axios.post('/api/admin/edit', {
+        const editUser = await axios.post('/api/admin/edit', {
           id: user.id,
           user: formValues.user,
           pass: formValues.pass,
+          canUpload: formValues.canUpload,
+          canGet: formValues.canGet,
         });
-        await fetchUsers();
-        Swal.fire('Berhasil', 'User berhasil diperbarui', 'success');
+
+        if (editUser.data?.success === true) {
+          Swal.fire('Berhasil', 'User berhasil diperbarui', 'success');
+          await fetchUsers();
+        }
       } catch (error) {
         console.error(error);
         Swal.fire('Error', 'Gagal memperbarui user', 'error');
+      }
+    }
+
+  };
+
+  const handleDelete = async (user: string, id: number) => {
+    const confirm = await Swal.fire({
+      title: `Hapus User ${user}?`,
+      text: 'User akan dihapus permanen.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, hapus!',
+      cancelButtonText: 'Batal',
+    });
+    if (confirm.isConfirmed) {
+      showLoadingSwal('Menghapus user...')
+      try {
+        const deleteUser = await axios.post('/api/admin/delete', { id });
+        if (deleteUser.data?.success === true) {
+          Swal.fire('Dihapus', 'User berhasil dihapus!', 'success');
+          await fetchUsers();
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+          console.log(error.message);
+          Swal.fire('Gagal', 'Gagal menghapus user.', 'error');
+        }
+        
       }
     }
   };
@@ -246,12 +369,12 @@ const handleCreateUser = async () => {
             placeholder="Cari user..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            className="w-full md:w-1/3 px-4 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
-          />
-          <button
-              onClick={handleCreateUser}
-              className="flex items-center gap-2 bg-green-500 hover:bg-green-900 text-white px-4 py-2 rounded-md"
-            >
+            className="w-50 md:w-1/3 px-4 py-2 border rounded-md dark:bg-gray-800 dark:border-gray-700"
+          />``
+            <button
+                onClick={handleCreateUser}
+                className="flex items-center gap-2 bg-green-500 hover:bg-green-900 text-white px-4 py-2 rounded-md"
+              >
               <FaPlus />
               Create User
             </button>
@@ -261,9 +384,9 @@ const handleCreateUser = async () => {
           <table className="min-w-full bg-white dark:bg-gray-800 border rounded-md">
             <thead className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
               <tr>
-                <th className="px-4 py-2 text-left">ID</th>
+                <th hidden className="px-3 py-2 text-left">ID</th>
                 <th className="px-4 py-2 text-left">Username</th>
-                <th className="px-4 py-2 text-left">Password</th>
+                <th className="px-4 py-2 text-left">Date</th>
                 <th className="px-4 py-2 text-left">Action</th>
               </tr>
             </thead>
@@ -283,9 +406,9 @@ const handleCreateUser = async () => {
               ) : (
                 users.map((user) => (
                   <tr key={user.id} className="border-t dark:border-gray-700">
-                    <td className="px-4 py-2">{user.id}</td>
-                    <td className="px-4 py-2">{user.user}</td>
-                    <td className="px-4 py-2">{user.sambel}</td>
+                    <td hidden className="px-4 py-2">{user.id}</td>
+                    <td className="px-4 py-2">{user.username}</td>
+                    <td className="px-4 py-2">{user.created_at}</td>
                     <td className="px-4 py-2">
                       <div className="flex gap-2">
                         <button
@@ -297,7 +420,7 @@ const handleCreateUser = async () => {
                         </button>
                         {user.role !== 'admin' && (
                         <button
-                          onClick={() => handleDelete(user.id)}
+                          onClick={() => handleDelete( user.username, user.id )}
                           className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-md text-sm"
                           title="Delete User"
                         >

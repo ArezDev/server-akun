@@ -1,28 +1,39 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcryptjs';
-import db from "@/config/db";
+import { db } from "@/config/firebase";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const { user, pass, id } = req.body;
+  const { user, pass, id, canGet, canUpload } = req.body;
 
-  if (!user) {
-    return res.status(400).json({ message: 'User tidak boleh kosong' });
+  if (!id) {
+    return res.status(400).json({ message: 'ID tidak boleh kosong' });
   }
-  //hash password
-  const ngamakno_password = await bcrypt.hash(pass, 15);
+  if (!user && !pass) {
+    return res.status(400).json({ message: 'Minimal isi salah satu field (user atau pass)' });
+  }
 
   try {
-    const [result] = await db.execute(
-        `UPDATE id_user 
-            SET user = ?, pass = ?, sambel = ?
-                WHERE id_user.id = ?`,
-    [user, ngamakno_password, pass, id]);
+    const updateData: Record<string, any> = {};
 
-    return res.status(200).json({ message: 'User berhasil diedit!~', result });
+    if (user) {
+      updateData.username = user;
+    }
+
+    if (pass) {
+      const hashed = await bcrypt.hash(pass, 15);
+      updateData.password = hashed;
+    }
+
+    updateData.canGet = !!canGet;
+    updateData.canUpload = !!canUpload;
+
+    await db.collection('users').doc(id).set(updateData, { merge: true });
+
+    return res.status(200).json({ success: true, message: 'User berhasil diedit!' });
   } catch (error) {
     console.error('Error modifikasi user:', error);
     return res.status(500).json({ message: 'Gagal edit user' });
