@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcryptjs';
-import { db } from "@/config/firebase";
+import db from '@/config/db';
+//import { db } from "@/config/firebase";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -31,9 +32,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     updateData.canGet = !!canGet;
     updateData.canUpload = !!canUpload;
 
-    await db.collection('users').doc(id).set(updateData, { merge: true });
+    //Firebase
+    //await db.collection('users').doc(id).set(updateData, { merge: true });
 
-    return res.status(200).json({ success: true, message: 'User berhasil diedit!' });
+    //Mysql
+    const [result] = await db.execute(
+      `UPDATE users SET 
+      ${user ? 'username = ?,' : ''}
+      ${pass ? 'password = ?,' : ''}
+      canGet = ?, 
+      canUpload = ?
+      WHERE id = ?`,
+      [
+      ...(user ? [user] : []),
+      ...(pass ? [updateData.password] : []),
+      updateData.canGet,
+      updateData.canUpload,
+      id
+      ]
+    );
+
+    if ((result as any).affectedRows === 1) {
+      return res.status(200).json({ success: true, message: `User: ${user} berhasil diedit!` });
+    } else {
+      return res.status(401).json({ success: true, message: `User: ${user} gagal diedit!` });
+    }
+
   } catch (error) {
     console.error('Error modifikasi user:', error);
     return res.status(500).json({ message: 'Gagal edit user' });

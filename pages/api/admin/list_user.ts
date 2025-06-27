@@ -1,57 +1,53 @@
+import db from '@/config/db';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { db } from "@/config/firebase";
+//import { db } from "@/config/firebase";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    // if (req.method === 'GET') {
-
-    //     const [rows] = await db.query('SELECT id, user, pass FROM id_user');
-    //     return res.status(200).json({ users: rows });
-    // }
     if (req.method === 'GET') {
-      //Mysql
-      // const { search = '', page = 1, limit = 10 } = req.query;
-      // // Validasi dan pastikan page dan limit adalah angka
-      // const pageNumber = Math.max(1, Number(page)); // default ke 1 jika page tidak valid
-      // const limitNumber = Math.max(1, Number(limit)); // default ke 10 jika limit tidak valid
-      // // Menggunakan wildcard '%' untuk mencari user yang mengandung keyword dari 'search'
-      // const keyword = `%${search}%`;
-      // // Query untuk mencari user yang cocok dengan parameter 'search' dan untuk pagination
-      // const [rows] = await db.query(
-      //   //'SELECT id, user, pass FROM id_user WHERE user LIKE ? LIMIT ? OFFSET ?',
-      //   `SELECT id, user, sambel 
-      //     FROM id_user 
-      //     WHERE user LIKE ? AND role != 'admin' 
-      //     LIMIT ? OFFSET ?`,
-      //   [keyword, limitNumber, (pageNumber - 1) * limitNumber]
-      // );
+      //Firebase
+      // const dataUser: { 
+      //   id: string; 
+      //   username: string; 
+      //   password: string;
+      //   canUpload: boolean;
+      //   canGet: boolean;
+      //   role: string;
+      //   created_at: any;
+      // }[] = [];
+      // const list_users = await db.collection('users')
+      // .where('role', '==', 'member')
+      // .orderBy('created_at', 'asc')
+      // .get();
+      // list_users.forEach((docs)=> {
+      //   const data = docs.data();
+      //   const createdAt = data.created_at;
+      //   dataUser.push({
+      //     id: docs.id,
+      //     username: data.username,
+      //     password: data.password,
+      //     canGet: data.canGet,
+      //     canUpload: data.canUpload,
+      //     role: data.role,
+      //     created_at: createdAt.toDate()
+      //   });
+      // });
 
-      const dataUser: { 
-        id: string; 
-        username: string; 
-        password: string;
-        canUpload: boolean;
-        canGet: boolean;
-        role: string;
-        created_at: any;
-      }[] = [];
-      const list_users = await db.collection('users')
-      .where('role', '==', 'member')
-      .orderBy('created_at', 'asc')
-      .get();
-      list_users.forEach((docs)=> {
-        const data = docs.data();
-        const createdAt = data.created_at;
-        dataUser.push({
-          id: docs.id,
-          username: data.username,
-          password: data.password,
-          canGet: data.canGet,
-          canUpload: data.canUpload,
-          role: data.role,
-          created_at: createdAt.toDate()
-        });
-      });
+      //Mysql
+      // Query users with role 'member' from MySQL
+      const [rows] = await db.execute(
+        'SELECT id, username, password, canUpload, canGet, role, created_at FROM users WHERE role = ? ORDER BY created_at ASC',
+        ['member']
+      );
+      const dataUser = (rows as any[]).map(user => ({
+        id: user.id,
+        username: user.username,
+        password: user.password,
+        canUpload: !!user.canUpload,
+        canGet: !!user.canGet,
+        role: user.role,
+        created_at: user.created_at
+      }));
       // Mengembalikan data user yang ditemukan
       return res.status(200).json({ users: dataUser });
     }

@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { db } from "@/config/firebase";
+//import { db } from "@/config/firebase";
 import { Timestamp } from 'firebase-admin/firestore';
 import axios from 'axios';
+import db from '@/config/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -22,57 +23,66 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
        const minutes = String(now.getMinutes()).padStart(2, '0');
        const seconds = String(now.getSeconds()).padStart(2, '0');
        const today = `${year}-${month}-${day}:${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
-      // const [result] = await db.query('INSERT INTO FB (cokis, id_user, create_at) VALUES (?, ?, ?)', [cokis, userId, today]);
-      // const [result2] = await db.query('INSERT INTO FB_Live (cokis, id_user, create_at) VALUES (?, ?, ?)', [cokis, userId, today]);
-      // if ('affectedRows' in result && result.affectedRows > 0 || 'affectedRows' in result2 && result2.affectedRows > 0) {
-      // // Trigger WebSocket ketika ada request POST ke /api/user/upload_akun
-      // const io = (res.socket as any).server.io;
-      // io.emit('upload_akun_triggered', { message: 'Akun data uploaded', cokis, userId });
 
-      //   //kirim sukses upload cokis!
-      //   return res.status(200).json({ 
-      //     success: true, 
-      //     cokis: cokis, 
-      //     message: 'Cokis sukses di tambahkan' 
-      //   });
+      //Firebase
+      // const check_permissions = await db.collection('users')
+      // .where('username', '==', userId).where('canUpload', '==', true).get();
 
-      // } else {
-      //   return res.status(500).json({
-      //     success: false,
-      //     message: 'Gagal menambahkan cokis',
-      //   });
+      // if (check_permissions.empty) {
+      //   return res.status(401).json({error: 'You dont have permissions to access..'});
       // }
 
-      const check_permissions = await db.collection('users')
-      .where('username', '==', userId).where('canUpload', '==', true).get();
+      // //const docId = `FB-${userId}`;
+      // const sendFB = db.collection('fb_akun').doc();
+      // sendFB.set({
+      //   fbne: userId,
+      //   cokis: cokis,
+      //   created_at: Timestamp.now()
+      // },{merge:true});
+      // // Kirim ke socket
+      // await axios.post(`${process.env.NEXT_PUBLIC_SOCKET_URL}/broadcast`, {
+      //   event: "send-cokis",
+      //   payload: {
+      //     message: `User: ${userId} send cokis..`,
+      //     fb: cokis,
+      //   }
+      // });
 
-      if (check_permissions.empty) {
-        return res.status(401).json({error: 'You dont have permissions to access..'});
+      //Mysql
+      // Check permissions in MySQL
+      const [userRows] = await db.execute(
+        'SELECT canUpload FROM users WHERE username = ? AND canUpload = 1 LIMIT 1',
+        [userId]
+      );
+
+      if (!Array.isArray(userRows) || userRows.length === 0) {
+        return res.status(401).json({ error: 'You dont have permissions to access..' });
       }
 
-      //const docId = `FB-${userId}`;
-      const sendFB = db.collection('fb_akun').doc();
-      sendFB.set({
-        fbne: userId,
-        cokis: cokis,
-        created_at: Timestamp.now()
-      },{merge:true});
-      // Kirim ke socket
-      await axios.post(`${process.env.NEXT_PUBLIC_SOCKET_URL}/broadcast`, {
-        event: "send-cokis",
-        payload: {
-          message: `User: ${userId} send cokis..`,
-          fb: cokis,
-        }
-      });
-      
-      return res.status(200).json({success: true, cokis: cokis});
-    }
+      // Insert into fb_akun table
+      const [uploadCokis] = await db.execute(
+        'INSERT INTO fb_akun (fbne, cokis, created_at) VALUES (?, ?, ?)',
+        [userId, cokis, today]
+      );
 
+      if ((uploadCokis as any).affectedRows === 1) {
+        // Kirim ke socket
+        await axios.post(`${process.env.NEXT_PUBLIC_SOCKET_URL}/broadcast`, {
+          event: "send-cokis",
+          payload: {
+        message: `User: ${userId} send cokis..`,
+        fb: cokis,
+          }
+        });
+        return res.status(200).json({ success: true, cokis: cokis });
+      }
+      
+    }
     res.setHeader('Allow', ['POST']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   } catch (error) {
     console.error('Database error:', error);
-    return res.status(500).json({ error: 'Gagal mengakses database' });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return res.status(500).json({ error: `Gagal mengakses database: ${errorMessage}` });
   }
 }

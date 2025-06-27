@@ -50,22 +50,33 @@ export default function Login() {
             
           // }, 1000);
           
-      } 
-      // else {
-      //   Swal.fire('Error', 'Invalid credentials', 'error');
-      // }
-    } catch (error: unknown) {
-
-      if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
-        //Swal.fire('Error', 'An error occurred. Please try again.', 'error');
-        Swal.fire('Error', error.message, 'error');
       }
+      else {
+        Swal.fire('Error', response.data.message, 'error');
+      }
+    } catch (error) {
+      let errorMessage = 'An error occurred';
+      if (axios.isAxiosError(error) && error.response) {
+        if (error.response.status === 401) {
+          errorMessage = error.response.data?.message || 'Unauthorized';
+        } else {
+          errorMessage = error.response.data?.message || error.message;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      Swal.fire('Error', errorMessage, 'error');
+
+      // if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+      //   //Swal.fire('Error', 'An error occurred. Please try again.', 'error');
+      //   Swal.fire('Error', errorMessage, 'error');
+      // }
       
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-800 text-black">
+    <div className="min-h-screen flex items-center justify-center bg-gray-800 text-black dark:text-white">
       <div className="max-w-md w-full bg-white p-8 rounded-lg shadow-lg">
         <h2 className="text-2xl font-bold text-center mb-6">Login Admin</h2>
         <form onSubmit={handleLogin}>

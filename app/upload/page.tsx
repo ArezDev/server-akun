@@ -20,8 +20,9 @@ export default function UploadPage() {
              
             try {
                 const isPermit = await axios.get('/api/user/auth', { withCredentials: true });
-                if (isPermit.data?.user.canUpload !== true) {
+                if (isPermit.data?.user.canUpload != 1) {
                     Swal.fire('Error', 'You dont have permissons!', 'error');
+                    router.back();
                 }
                 
             } catch (error: any) {

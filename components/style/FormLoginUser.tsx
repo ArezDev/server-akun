@@ -58,7 +58,7 @@ export default function UserLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-light-100 text-black dark:bg-gray-900">
+    <div className="min-h-screen flex items-center justify-center bg-light-100 text-black dark:bg-gray-900 dark:text-white">
       <div className="max-w-md w-full bg-grey dark:bg-gray-100 p-8 rounded-lg shadow-lg">
         <form onSubmit={handleLogin}>
           <div className="mb-4">

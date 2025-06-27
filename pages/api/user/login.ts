@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import bcrypt from "bcryptjs";
-import { db } from "@/config/firebase";
+//import { db } from "@/config/firebase";
 import nookies from 'nookies';
 import { RowDataPacket } from 'mysql2';
 import jwt from 'jsonwebtoken';
+import db from "@/config/db";
 
 const SECRET_KEY = process.env.JWT_SECRET;
 
@@ -23,49 +24,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-      // Mysql
-      // const [rows] = await db.query<UserData[]>(
-      //   'SELECT `id`, `user`, `pass`, `role` FROM `id_user` WHERE `user` = ?',
-      //   [user]
-      // );
-      // if (!Array.isArray(rows) || rows.length === 0) {
-      //   return res.status(401).json({ success: false, message: "User tidak ditemukan." });
+      // Firebase
+      // const whereUser = await db.collection('users')
+      // .where('username', '==', user).where('role', '==', 'member')
+      // .limit(1)
+      // .get();
+      // if (whereUser.empty) {
+      //   return res.status(401).json({ success: false, message: "Username tidak ditemukan." });
       // }
-      // if (rows[0].role === 'admin') {
-      //   return res.status(401).json({ success: false, message: "Hey anda admin ngapain kesini..!" });
-      // }
-      // const userData = rows[0];
+      // const dataUser: { 
+      //   id: string; 
+      //   username: string; 
+      //   password: string; 
+      //   role: string;
+      //   canGet: boolean;
+      //   canUpload: boolean;
+      // }[] = [];
+      // const foundUser = await db.collection('users')
+      // .where('username', '==', user).where('role', '==', 'member')
+      // .limit(1)
+      // .get();
+      // foundUser.forEach((docs)=> {
+      //   const data = docs.data();
+      //   dataUser.push({
+      //     id: docs.id,
+      //     username: data.username,
+      //     password: data.password,
+      //     role: data.role,
+      //     canGet: data.canGet,
+      //     canUpload: data.canUpload
+      //   });
+      // });
 
-      const whereUser = await db.collection('users')
-      .where('username', '==', user).where('role', '==', 'member')
-      .limit(1)
-      .get();
-      if (whereUser.empty) {
+      //Mysql
+      // Query user from MySQL
+      const [rows] = await db.execute<UserData[]>(
+        "SELECT id, username, password, role, canGet, canUpload FROM users WHERE username = ? AND role = 'member' LIMIT 1",
+        [user]
+      );
+
+      if (!rows || rows.length === 0) {
         return res.status(401).json({ success: false, message: "Username tidak ditemukan." });
       }
-      const dataUser: { 
-        id: string; 
-        username: string; 
-        password: string; 
-        role: string;
-        canGet: boolean;
-        canUpload: boolean;
-      }[] = [];
-      const foundUser = await db.collection('users')
-      .where('username', '==', user).where('role', '==', 'member')
-      .limit(1)
-      .get();
-      foundUser.forEach((docs)=> {
-        const data = docs.data();
-        dataUser.push({
-          id: docs.id,
-          username: data.username,
-          password: data.password,
-          role: data.role,
-          canGet: data.canGet,
-          canUpload: data.canUpload
-        });
-      });
+
+      const dataUser = rows.map(row => ({
+        id: row.id,
+        username: row.username,
+        password: row.password,
+        role: row.role,
+        canGet: row.canGet,
+        canUpload: row.canUpload
+      }));
 
       // ✅ Verifikasi password dari server!
       const isMatch = await bcrypt.compare(pass, dataUser[0].password);

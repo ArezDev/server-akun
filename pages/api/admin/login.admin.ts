@@ -1,9 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db } from '@/config/firebase';
+//import { db } from '@/config/firebase';
 import { RowDataPacket } from 'mysql2';
 import nookies from 'nookies';
+import db from '@/config/db';
 
 const SECRET_KEY = process.env.JWT_SECRET;
 
@@ -30,33 +31,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Mysql
-    // const [rows] = await db.query<userData[]>('SELECT * FROM id_user WHERE user = ?', [user]);
-    // if (!Array.isArray(rows) || rows.length === 0) {
-    //   return res.status(401).json({ message: 'Username tidak ditemukan.' });
-    // }
-    //const userData = rows[0];
-    
-    const dataFounder: { 
-        id: string; 
-        username: string; 
-        password: string; 
-        role: string;
-    }[] = [];
-    const whoAreYou = await db.collection('users').where('username', '==', user).limit(1).get();
-    whoAreYou.forEach((docs) => {
-      const data = docs.data();
-      dataFounder.push({
-        id: docs.id,
-        username: data.username,
-        password: data.password,
-        role: data.role,
-      });
-    });
+    // Firebase
+    // const dataFounder: { 
+    //     id: string; 
+    //     username: string; 
+    //     password: string; 
+    //     role: string;
+    // }[] = [];
+    // const whoAreYou = await db.collection('users').where('username', '==', user).limit(1).get();
+    // whoAreYou.forEach((docs) => {
+    //   const data = docs.data();
+    //   dataFounder.push({
+    //     id: docs.id,
+    //     username: data.username,
+    //     password: data.password,
+    //     role: data.role,
+    //   });
+    // });
 
-    if (whoAreYou.empty) {
+    // if (whoAreYou.empty) {
+    //   return res.status(401).json({ message: 'Password salah.' });
+    // }
+
+    // Query user from MySQL database
+    const [rows] = await db.execute<userData[]>(
+      'SELECT username, password, role FROM users WHERE username = ? LIMIT 1',
+      [user]
+    );
+
+    if (!rows || rows.length === 0) {
       return res.status(401).json({ message: 'Password salah.' });
     }
+
+    const dataFounder = rows.map(row => ({
+      id: row.id,
+      username: row.username,
+      password: row.password,
+      role: row.role,
+    }));
 
     // verifikasi password yang dihash..!
     const isMatch = await bcrypt.compare(pass, dataFounder[0].password);
