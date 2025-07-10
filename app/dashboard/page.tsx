@@ -17,21 +17,26 @@ const Dashboard: React.FC = () => {
   const [userData, setUserData] = useState<{ id: number; user: string; role: string; canGet: boolean; canUpload: boolean; } | null>(null);
   const isLoading = useRef(false);
   
-  useEffect(() => {
-  
-  //websocket Initialized
-  const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
-      transports: ["websocket"],
-  });
+useEffect(() => {
+  let socket: ReturnType<typeof io>;
 
-  socket.on('send-cokis', async (data) => {
+  const initialize = async () => {
+    //getAkun info
+    const myInfo = await axios.get('/api/user/auth', { withCredentials: true });
+
+    //websocket Initialized
+    socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
+      transports: ["websocket"],
+    });
+
+    socket.on(`send-cokis-${myInfo.data?.user?.user}`, async (data) => {
       console.log('Event diterima:', data);
 
       if (data?.fb && !isLoading.current) {
 
         if (isLoading.current) {
-            console.log("⏳ Masih memproses, abaikan event baru.");
-            return; // cegah eksekusi berulang
+          console.log("⏳ Masih memproses, abaikan event baru.");
+          return; // cegah eksekusi berulang
         }
 
         //set Loading akun..
@@ -74,10 +79,9 @@ const Dashboard: React.FC = () => {
       }
     });
 
-  
-  //handle WebSocket
-  socket.on('connect', () => {
-      console.log('Connected to WebSocket server' );
+    //handle WebSocket
+    socket.on('connect', () => {
+      console.log('Connected to WebSocket server');
       //setIsConnected(true);
     });
 
@@ -87,35 +91,41 @@ const Dashboard: React.FC = () => {
       //setIsConnected(false);
     });
 
-// 🔐 Verifikasi user
-  const checkUser = async () => {
-    try {
-      const res = await axios.get('/api/user/auth', { withCredentials: true });
-      const user = res.data.user;
-      if (user.role !== 'member') {
-        Swal.fire('Akses Ditolak', 'Who are you?', 'error');
-        router.push('/');
-        return;
+    // 🔐 Verifikasi user
+    const checkUser = async () => {
+      try {
+        const res = await axios.get('/api/user/auth', { withCredentials: true });
+        const user = res.data.user;
+        if (user.role !== 'member') {
+          Swal.fire('Akses Ditolak', 'Who are you?', 'error');
+          router.push('/');
+          return;
+        }
+        setUserData(user);
+        fetchAccounts();
+      } catch (error: unknown) {
+        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+          console.log(error.message);
+          Swal.fire('Unauthorized', error.response.data.message, 'error');
+          router.push('/');
+          return false;
+        }
+
       }
-      setUserData(user);
-      fetchAccounts();
-    } catch (error: unknown) {
-      if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
-        console.log(error.message);
-        Swal.fire('Unauthorized', error.response.data.message, 'error');
-        router.push('/');
-        return false;
-      }
-      
-    }
+    };
+
+    checkUser();
   };
 
-  checkUser();
+  initialize();
+
   // Cleanup on unmount
-    return () => {
+  return () => {
+    if (socket) {
       socket.disconnect();
-    };
-  }, []);
+    }
+  };
+}, []);
 
   // Ambil data akun dari API saat halaman dimuat
   const fetchAccounts = async () => {

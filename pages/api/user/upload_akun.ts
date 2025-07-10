@@ -68,7 +68,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if ((uploadCokis as any).affectedRows === 1) {
         // Kirim ke socket
         await axios.post(`${process.env.NEXT_PUBLIC_SOCKET_URL}/broadcast`, {
-          event: "send-cokis",
+          event: `send-cokis-${userId}`,
           payload: {
         message: `User: ${userId} send cokis..`,
         fb: cokis,
