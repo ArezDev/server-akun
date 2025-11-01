@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import bcrypt from "bcryptjs";
-//import { db } from "@/config/firebase";
 import nookies from 'nookies';
 import { RowDataPacket } from 'mysql2';
 import jwt from 'jsonwebtoken';
@@ -24,39 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-      // Firebase
-      // const whereUser = await db.collection('users')
-      // .where('username', '==', user).where('role', '==', 'member')
-      // .limit(1)
-      // .get();
-      // if (whereUser.empty) {
-      //   return res.status(401).json({ success: false, message: "Username tidak ditemukan." });
-      // }
-      // const dataUser: { 
-      //   id: string; 
-      //   username: string; 
-      //   password: string; 
-      //   role: string;
-      //   canGet: boolean;
-      //   canUpload: boolean;
-      // }[] = [];
-      // const foundUser = await db.collection('users')
-      // .where('username', '==', user).where('role', '==', 'member')
-      // .limit(1)
-      // .get();
-      // foundUser.forEach((docs)=> {
-      //   const data = docs.data();
-      //   dataUser.push({
-      //     id: docs.id,
-      //     username: data.username,
-      //     password: data.password,
-      //     role: data.role,
-      //     canGet: data.canGet,
-      //     canUpload: data.canUpload
-      //   });
-      // });
-
-      //Mysql
+      
       // Query user from MySQL
       const [rows] = await db.execute<UserData[]>(
         "SELECT id, username, password, role, canGet, canUpload FROM users WHERE username = ? AND role = 'member' LIMIT 1",
@@ -93,7 +60,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           canGet: dataUser[0].canGet,
         },
         SECRET_KEY as string,
-        { expiresIn: '30m' } // Token valid 30 menit
+        { expiresIn: '1d' } // Token valid 30 menit
       );
 
       // 🍪 Simpan token di cookie

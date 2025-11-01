@@ -17,115 +17,135 @@ const Dashboard: React.FC = () => {
   const [userData, setUserData] = useState<{ id: number; user: string; role: string; canGet: boolean; canUpload: boolean; } | null>(null);
   const isLoading = useRef(false);
   
-useEffect(() => {
-  let socket: ReturnType<typeof io>;
+  useEffect(() => {
 
-  const initialize = async () => {
-    //getAkun info
-    const myInfo = await axios.get('/api/user/auth', { withCredentials: true });
+    let socket: ReturnType<typeof io>;
 
-    //websocket Initialized
-    socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
-      transports: ["websocket"],
-    });
+    const initialize = async () => {
+      //getAkun info
+      const myInfo = await axios.get('/api/user/auth', { withCredentials: true });
 
-    socket.on(`send-cokis-${myInfo.data?.user?.user}`, async (data) => {
-      console.log('Event diterima:', data);
+      //websocket Initialized
+      socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
+        transports: ["websocket"],
+      });
 
-      if (data?.fb && !isLoading.current) {
+      socket.on(`send-cokis-${myInfo.data?.user?.user}`, async (data) => {
 
-        if (isLoading.current) {
-          console.log("⏳ Masih memproses, abaikan event baru.");
-          return; // cegah eksekusi berulang
-        }
+        console.log('Akun diterima:', data);
 
-        //set Loading akun..
-        isLoading.current = true;
+        if (data?.fb && !isLoading.current) {
 
-        // Tampilkan loading
-        showLoadingSwal('Mendapatkan akun...');
-
-        try {
-          console.log(userData)
-          // Get user ID dari auth API
-          const authRes = await axios.get('/api/user/auth', { withCredentials: true });
-          const userId = authRes.data?.user?.user;
-
-          if (!userId) throw new Error('User ID tidak ditemukan');
-
-          // Get akun dengan user ID
-          const akunRes = await axios.get<{ fb: string }>('/api/user/akun', {
-            params: { user: userId },
-          });
-
-          const akunText = akunRes.data?.fb || '';
-          if (akunText) {
-            setAccounts(akunText);
-            //fetchAccounts();
+          if (isLoading.current) {
+            console.log("⏳ Masih memproses, abaikan event baru.");
+            return; // cegah eksekusi berulang
           }
 
-        } catch (error) {
-          console.error('Gagal mengambil akun:', error);
-          closeSwal();
-          Swal.fire('Gagal', 'Terjadi kesalahan saat mendapatkan akun.', 'error');
-        } finally {
-          setTimeout(() => {
-            isLoading.current = false; // beri waktu delay agar tidak langsung terbuka untuk event berikutnya
-            console.log("✅ Selesai, siap terima event lagi.");
+          //set Loading akun..
+          isLoading.current = true;
+
+          // Tampilkan loading
+          showLoadingSwal('Mendapatkan akun...');
+
+          try {
+
+            //console.log(userData)
+            // Get user ID dari auth API
+            const authRes = await axios.get('/api/user/auth', { withCredentials: true });
+            const userId = authRes.data?.user?.user;
+
+            if (!userId) throw new Error('User ID tidak ditemukan');
+
+            // Get akun dengan user ID
+            const akunRes = await axios.get<{ fb: string }>('/api/user/akun', {
+              params: { user: userId },
+            });
+
+            const akunText = akunRes.data?.fb || '';
+            if (akunText) {
+              setAccounts(akunText);
+              //fetchAccounts();
+            }
+
+          } catch (error: any) {
+
+            console.error('Gagal mengambil akun:', error.message);
+
             closeSwal();
-            fetchAccounts();
-          }, 2000); // delay sesuai dengan swal success timer
+
+            //Swal.fire('Gagal', 'Terjadi kesalahan saat mendapatkan akun.', 'error');
+            Swal.fire({
+              position: "top-end",
+              icon: "error",
+              title: "Terjadi kesalahan saat mendapatkan akun.",
+              showConfirmButton: false,
+              timer: 1500,
+              toast: true,
+            });
+
+          } finally {
+            setTimeout(() => {
+              isLoading.current = false; // beri waktu delay agar tidak langsung terbuka untuk event berikutnya
+              console.log("✅ Selesai, siap terima event lagi.");
+              closeSwal();
+              fetchAccounts();
+            }, 2000); // delay sesuai dengan swal success timer
+          }
         }
-      }
-    });
+      });
 
-    //handle WebSocket
-    socket.on('connect', () => {
-      console.log('Connected to WebSocket server');
-      //setIsConnected(true);
-    });
+      //handle WebSocket
+      socket.on('connect', () => {
+        console.log('Connected to WebSocket server');
+      });
 
-    // Listen for disconnect event
-    socket.on('disconnect', () => {
-      console.log('Disconnected from WebSocket server');
-      //setIsConnected(false);
-    });
+      // Listen for disconnect event
+      socket.on('disconnect', () => {
+        console.log('Disconnected from WebSocket server');
+      });
 
-    // 🔐 Verifikasi user
-    const checkUser = async () => {
-      try {
-        const res = await axios.get('/api/user/auth', { withCredentials: true });
-        const user = res.data.user;
-        if (user.role !== 'member') {
-          Swal.fire('Akses Ditolak', 'Who are you?', 'error');
-          router.push('/');
-          return;
+      // 🔐 Verifikasi user
+      const checkUser = async () => {
+        try {
+          const res = await axios.get('/api/user/auth', { withCredentials: true });
+          const user = res.data.user;
+          if (user.role !== 'member') {
+            Swal.fire('Akses Ditolak', 'Who are you?', 'error');
+            router.push('/');
+            return;
+          }
+          setUserData(user);
+          fetchAccounts();
+        } catch (error: unknown) {
+          if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+            console.log(error.message);
+            //Swal.fire('Unauthorized', error.response.data.message, 'error');
+            Swal.fire({
+              position: "top-end",
+              icon: "error",
+              title: error.response.data.message,
+              showConfirmButton: false,
+              timer: 1500,
+              toast: true,
+            });
+            router.push('/');
+            return false;
+          }
+
         }
-        setUserData(user);
-        fetchAccounts();
-      } catch (error: unknown) {
-        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
-          console.log(error.message);
-          Swal.fire('Unauthorized', error.response.data.message, 'error');
-          router.push('/');
-          return false;
-        }
+      };
 
-      }
+      checkUser();
     };
 
-    checkUser();
-  };
+    initialize();
 
-  initialize();
+    // Cleanup on unmount
+    return () => {
+      if (socket) socket.connect();
+    };
 
-  // Cleanup on unmount
-  return () => {
-    if (socket) {
-      socket.disconnect();
-    }
-  };
-}, []);
+  }, []);
 
   // Ambil data akun dari API saat halaman dimuat
   const fetchAccounts = async () => {
@@ -156,11 +176,12 @@ useEffect(() => {
   const handleCopy = () => {
     navigator.clipboard.writeText(accounts).then(() => {
       Swal.fire({
-        icon: 'success',
-        title: `Tersalin!`,
-        text: 'Data akun telah disalin.',
+        position: "top-end",
+        icon: "success",
+        title: "Data akun telah disalin.",
         showConfirmButton: false,
-        timer: 1000
+        timer: 1500,
+        toast: true,
       });
     });
   };
@@ -181,14 +202,22 @@ useEffect(() => {
         const getUserId = await axios.get('/api/user/auth', { withCredentials: true });
         const deleteAkun = await axios.delete('/api/user/akun', { params: { user: getUserId.data?.user?.user } });
         if (deleteAkun.data?.success === true) {
-          Swal.fire('Berhasil', 'Semua akun telah dihapus.', 'success');
+          //Swal.fire('Berhasil', 'Semua akun telah dihapus.', 'success');
+          Swal.fire({
+            position: "top-end",
+            icon: "success",
+            title: "Semua akun telah dihapus !",
+            showConfirmButton: false,
+            timer: 1500,
+            toast: true,
+          });
           setAccounts('');
         }
 
       } catch (error) {
         if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
-          console.log(error.message);
-          Swal.fire('Gagal', 'Tidak dapat menghapus akun.', 'error');
+          console.warn(`${error?.response?.data || 'Tidak dapat menghapus akun.'}`);
+          Swal.fire('Gagal', `${error?.response?.data || 'Tidak dapat menghapus akun.'}`, 'error');
         }
         
       }
@@ -197,7 +226,7 @@ useEffect(() => {
 
   // Ekspor ke file teks
   const handleExport = () => {
-    const filename = `akun-${new Date().toISOString().split('T')[0]}.txt`;
+    const filename = `akun-${userData?.user}-${new Date().toISOString().split('T')[0]}.txt`;
     const blob = new Blob([accounts], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -266,7 +295,10 @@ useEffect(() => {
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2 text-lg font-semibold">
             <FaUser className="text-blue-600" />
-            <span className="text-gray-800 dark:text-gray-100">{userData?.user} | Total Akun: {accounts.split('\n').length}</span>
+            {/* Detail Info Akun */}
+            <span className="text-gray-800 dark:text-gray-100">
+              {userData?.user} | Total Akun: {accounts ? accounts.split('\n').length : 0}
+            </span>
           </div>
           
           <button
