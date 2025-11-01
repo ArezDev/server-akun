@@ -36,12 +36,20 @@ export default function UserLogin() {
       });
       
       if (response.data.success) {
+        // Swal.fire({
+        //   icon: 'success',
+        //   title: `Selamat Datang ${user}`,
+        //   showConfirmButton: false,
+        //   timer: 1500, // dalam milidetik (1500ms = 1.5 detik)
+        //   timerProgressBar: true,
+        // });
         Swal.fire({
-          icon: 'success',
-          title: `Selamat Datang ${user}`,
+          position: "top-end",
+          icon: "success",
+          title: `Welcome ${user} !`,
           showConfirmButton: false,
-          timer: 1500, // dalam milidetik (1500ms = 1.5 detik)
-          timerProgressBar: true,
+          timer: 2000,
+          toast: true,
         });
         router.push('/dashboard'); // Redirect to dashboard if login is successful
       } else {

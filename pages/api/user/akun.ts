@@ -81,7 +81,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (result.affectedRows === 0) {
       console.log('Tidak ada dokumen dengan fbne:', user);
-      return res.status(405).json({ error: `Tidak ada dokumen dengan fbne: ${user}` });
+      return res.status(404).json({ success: false, msg: `Tidak ada dokumen dengan fbne: ${user}` });
       }
 
       return res.status(200).json({ success: true, msg: 'Delete akun success..!' });
@@ -89,8 +89,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     res.setHeader('Allow', ['GET']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
-  } catch (error) {
-    console.error('Database error:', error);
-    return res.status(500).json({ error: 'Gagal mengakses database' });
+
+  } catch (error: any) {
+
+    console.error('Database error:', error.message);
+
+    return res.status(500).json({ success: false, msg: 'Gagal mengakses database' });
+
   }
 }

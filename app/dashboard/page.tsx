@@ -64,12 +64,11 @@ const Dashboard: React.FC = () => {
             const akunText = akunRes.data?.fb || '';
             if (akunText) {
               setAccounts(akunText);
-              //fetchAccounts();
             }
 
           } catch (error: any) {
 
-            console.error('Gagal mengambil akun:', error.message);
+            console.warn('Gagal mengambil akun:', error.message);
 
             closeSwal();
 
@@ -110,7 +109,15 @@ const Dashboard: React.FC = () => {
           const res = await axios.get('/api/user/auth', { withCredentials: true });
           const user = res.data.user;
           if (user.role !== 'member') {
-            Swal.fire('Akses Ditolak', 'Who are you?', 'error');
+            //Swal.fire('Akses Ditolak', 'Who are you?', 'error');
+            Swal.fire({
+              position: "top-end",
+              icon: "error",
+              title: "Your IP Address has been blocked !",
+              showConfirmButton: false,
+              timer: 1500,
+              toast: true,
+            });
             router.push('/');
             return;
           }
@@ -141,9 +148,9 @@ const Dashboard: React.FC = () => {
     initialize();
 
     // Cleanup on unmount
-    return () => {
-      if (socket) socket.connect();
-    };
+    // return () => {
+    //   if (socket) socket.connect();
+    // };
 
   }, []);
 
@@ -164,9 +171,17 @@ const Dashboard: React.FC = () => {
         setAccounts(akunText);
       }
       
-    } catch (err) {
-      console.error('Gagal memuat data akun:', err);
-      Swal.fire('Error', 'Gagal memuat data akun', 'error');
+    } catch (err: any) {
+      console.warn('Gagal memuat data akun:', err.message);
+      //Swal.fire('Error', 'Gagal memuat data akun', 'error');
+      Swal.fire({
+        position: "top-end",
+        icon: "error",
+        title: "Gagal memuat data akun",
+        showConfirmButton: false,
+        timer: 1500,
+        toast: true,
+      });
     } finally {
       setLoading(false);
     }
@@ -216,8 +231,8 @@ const Dashboard: React.FC = () => {
 
       } catch (error) {
         if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
-          console.warn(`${error?.response?.data || 'Tidak dapat menghapus akun.'}`);
-          Swal.fire('Gagal', `${error?.response?.data || 'Tidak dapat menghapus akun.'}`, 'error');
+          console.warn(`${error?.response?.data?.msg || 'Tidak dapat menghapus akun.'}`);
+          Swal.fire('Gagal', `${error?.response?.data?.msg || 'Tidak dapat menghapus akun.'}`, 'error');
         }
         
       }
@@ -247,13 +262,21 @@ const Dashboard: React.FC = () => {
 
       if (response.data.message === 'Logout berhasil') {
         // Menampilkan pesan sukses
-        Swal.fire('Sukses', 'Anda telah berhasil logout', 'success');
+        //Swal.fire('Sukses', 'Anda telah berhasil logout', 'success');
+        Swal.fire({
+          position: "top-end",
+          icon: "success",
+          title: "Anda telah berhasil logout",
+          showConfirmButton: false,
+          timer: 1500,
+          toast: true,
+        });
         
         // Mengarahkan ulang ke halaman utama atau halaman login
         router.push('/');
       }
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch (error: any) {
+      console.warn('Logout error:', error.message);
       Swal.fire('Gagal', 'Terjadi kesalahan saat logout', 'error');
     }
   };
