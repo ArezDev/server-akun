@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  # Aplikasi Next.js
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: server-akun
+    env_file:
+      - .env
+    networks:
+      - tempmail-network
+    restart: always
+
+networks:
+  tempmail-network:
+    external: true

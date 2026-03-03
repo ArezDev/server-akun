@@ -1,5 +1,5 @@
+import { prisma } from '@/lib/prisma';
 import type { NextApiRequest, NextApiResponse } from 'next';
-import db from '@/config/db';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -10,52 +10,70 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(401).json({ message: 'Missing query...!' });
       }
 
-      // Validasi input
-      if (!user) {
-        return res.status(401).json({ message: 'user tidak ditemukan...!' });
-      }
+      const limit = parseInt(total as string);
 
-      //Mysql
-      // Check permissions in MySQL
-      const [userRows] = await db.execute(
-        'SELECT canGet FROM users WHERE username = ? AND canGet = 1 LIMIT 1',
-        [user]
-      );
+      // 1. Check permissions (canGet)
+      const userData = await prisma.user.findFirst({
+        where: {
+          username: user as string,
+          canGet: 1,
+        },
+        select: { canGet: true }
+      });
 
-      if (!Array.isArray(userRows) || userRows.length === 0) {
+      if (!userData) {
         return res.status(401).json({ error: 'You dont have permissions to access..' });
       }
 
-      // Insert into fb_akun table
-      const [getAkun] = await db.execute(
-        `SELECT cokis FROM fb_akun WHERE fbne = ? ORDER BY created_at DESC LIMIT ${total}`,
-        [user]
-      );
+      // 2. Ambil data cokis sisan ID-ne (nggo bahan hapus)
+      const accounts = await prisma.fbAkun.findMany({
+        where: { fbne: user as string },
+        orderBy: { created_at: 'desc' },
+        take: limit,
+        select: { id: true, cokis: true } // Njupuk ID nggo query hapus sakwise iki
+      });
 
-      if (!getAkun || (Array.isArray(getAkun) && getAkun.length === 0)) {
-      return res.status(200).json([]);
+      if (accounts.length === 0) {
+        return res.status(200).json([]);
       }
+
+      // 3. Pisahno cokis nggo di-return
+      const cokisList = accounts.map(row => row.cokis).filter(Boolean);
       
-      const cokisList: string[] = (getAkun as any[]).map(row => row.cokis).filter(Boolean);
+      // 4. Hapus data sing wis dijupuk mau (berdasarkan ID)
+      const idsToDelete = accounts.map(row => row.id);
+      
+      const deleteResult = await prisma.fbAkun.deleteMany({
+        where: {
+          id: { in: idsToDelete }
+        }
+      });
 
-      const [delAkun]: any = await db.execute(
-      `DELETE FROM fb_akun WHERE fbne = ? ORDER BY created_at DESC LIMIT ${total}`,
-      [user]
-      );
-
-      if (delAkun.affectedRows === 0) {
-      console.log('Tidak ada dokumen dengan fbne:', user);
-      return res.status(405).json({ error: `Tidak ada dokumen dengan fbne: ${user}` });
+      if (deleteResult.count === 0) {
+        console.log('Tidak ada dokumen sing dibusak kanggo fbne:', user);
+        return res.status(405).json({ error: `Gagal mbusak data: ${user}` });
       }
 
+      // Return hasil akhir
       return res.status(200).json({ akun: cokisList.join('\n') });
-      
     }
+
     res.setHeader('Allow', ['GET']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
-  } catch (error) {
-    console.error('Database error:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return res.status(500).json({ error: `Gagal mengakses database: ${errorMessage}` });
+
+  } catch (error: unknown) {
+    // Ngonversi unknown dadi Error object ben iso diwaca message-ne
+    const err = error as Error;
+    
+    console.error('🔴 Database Error:', err.message);
+
+    // Yen kowe pengen mbedakno error Prisma (misal: koneksi mati)
+    // kowe iso nambahno pengecekan neng kene
+    return res.status(500).json({ 
+      success: false, 
+      msg: 'Gagal mengakses database',
+      // Opsi: tampilno error message pas dev mode wae
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
   }
 }

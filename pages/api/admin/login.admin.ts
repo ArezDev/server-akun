@@ -1,22 +1,13 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-//import { db } from '@/config/firebase';
-import { RowDataPacket } from 'mysql2';
 import nookies from 'nookies';
-import db from '@/config/db';
+import { prisma } from '@/lib/prisma';
 
 const SECRET_KEY = process.env.JWT_SECRET;
 
 if (!SECRET_KEY) {
   throw new Error('JWT_SECRET is not defined in the environment variables.');
-}
-
-interface userData extends RowDataPacket {
-  id: number;
-  user: string;
-  pass: string;
-  role: string;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -31,84 +22,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Firebase
-    // const dataFounder: { 
-    //     id: string; 
-    //     username: string; 
-    //     password: string; 
-    //     role: string;
-    // }[] = [];
-    // const whoAreYou = await db.collection('users').where('username', '==', user).limit(1).get();
-    // whoAreYou.forEach((docs) => {
-    //   const data = docs.data();
-    //   dataFounder.push({
-    //     id: docs.id,
-    //     username: data.username,
-    //     password: data.password,
-    //     role: data.role,
-    //   });
-    // });
+    // 1. Goleki data user soko MySQL nggunakno Prisma
+    const dataFounder = await prisma.user.findFirst({
+      where: {
+        username: user, // user soko req.body
+        role: 'ketua'
+        // Opsi: kowe iso nambahno filter role: 'founder' yen perlu
+      },
+    });
 
-    // if (whoAreYou.empty) {
-    //   return res.status(401).json({ message: 'Password salah.' });
-    // }
-
-    // Query user from MySQL database
-    const [rows] = await db.execute<userData[]>(
-      'SELECT username, password, role FROM users WHERE username = ? LIMIT 1',
-      [user]
-    );
-
-    if (!rows || rows.length === 0) {
-      return res.status(401).json({ message: 'Password salah.' });
+    // Yen username gak ketemu
+    if (!dataFounder) {
+      return res.status(401).json({ message: 'Password salah.' }); 
+      // Pesan digawe podo ben hacker bingung endi sing salah
     }
 
-    const dataFounder = rows.map(row => ({
-      id: row.id,
-      username: row.username,
-      password: row.password,
-      role: row.role,
-    }));
-
-    // verifikasi password yang dihash..!
-    const isMatch = await bcrypt.compare(pass, dataFounder[0].password);
+    // 2. Verifikasi password sing di-hash
+    const isMatch = await bcrypt.compare(pass, dataFounder.password);
 
     if (!isMatch) {
       return res.status(401).json({ message: 'Password salah.' });
     }
 
-    // ✅ Buat token JWT
+    // 3. ✅ Buat token JWT (Short lived: 3 menit)
     const token = jwt.sign(
       {
-        id: dataFounder[0].id,
-        user: dataFounder[0].username,
-        role: dataFounder[0].role,
+        id: dataFounder.id,
+        user: dataFounder.username,
+        role: dataFounder.role,
       },
       SECRET_KEY as string,
-      { expiresIn: '3m' } // Token valid 3 menit
+      { expiresIn: '3m' }
     );
 
-    // Set token di cookie dengan nookies
+    // 4. Set token neng cookie nganggo nookies (session_admin)
     nookies.set({ res }, 'session_admin', token, {
-        httpOnly: true, // Token hanya bisa diakses oleh server, tidak oleh JS di browser
-        secure: process.env.NODE_ENV === 'production', // Pastikan di HTTPS di production
-        maxAge: 3 * 60, // Set cookie expired dalam 3 menit
-        path: '/', // Cookie berlaku di seluruh domain
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 3 * 60, // 3 menit
+      path: '/',
     });
 
-    // Kirim token ke client
+    // 5. Kirim respon sukses
     return res.status(200).json({
       success: true,
       user: {
-        id: dataFounder[0].id,
-        user: dataFounder[0].username,
-        role: dataFounder[0].role,
+        id: dataFounder.id,
+        user: dataFounder.username,
+        role: dataFounder.role,
       },
       token,
     });
 
-  } catch (err) {
-    console.error('Login error:', err);
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error('🔴 Login Admin Error:', err.message);
+    }
     return res.status(500).json({ message: 'Terjadi kesalahan di server.' });
   }
 }

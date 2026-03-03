@@ -1,18 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import bcrypt from "bcryptjs";
 import nookies from 'nookies';
-import { RowDataPacket } from 'mysql2';
 import jwt from 'jsonwebtoken';
-import db from "@/config/db";
+import { prisma } from "@/lib/prisma";
 
 const SECRET_KEY = process.env.JWT_SECRET;
-
-interface UserData extends RowDataPacket {
-  id: number;
-  user: string;
-  pass: string;
-  role: string;
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "POST") {
@@ -22,72 +14,81 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ success: false, message: "Username and password are required." });
     }
 
+    // ... neng njero handler login ...
     try {
-      
-      // Query user from MySQL
-      const [rows] = await db.execute<UserData[]>(
-        "SELECT id, username, password, role, canGet, canUpload FROM users WHERE username = ? AND role = 'member' LIMIT 1",
-        [user]
-      );
+      // 1. Goleki user nggunakno Prisma
+      const dataUser = await prisma.user.findFirst({
+        where: {
+          username: user,
+          role: 'member',
+        },
+      });
 
-      if (!rows || rows.length === 0) {
+      // console.log("🔍 Input User:", user);
+      // console.log("📂 Data soko DB:", dataUser);
+
+      if (!dataUser) {
         return res.status(401).json({ success: false, message: "Username tidak ditemukan." });
       }
 
-      const dataUser = rows.map(row => ({
-        id: row.id,
-        username: row.username,
-        password: row.password,
-        role: row.role,
-        canGet: row.canGet,
-        canUpload: row.canUpload
-      }));
-
-      // ✅ Verifikasi password dari server!
-      const isMatch = await bcrypt.compare(pass, dataUser[0].password);
+      const isMatch = await bcrypt.compare(pass, dataUser.password);
+      // console.log("🔐 Password Match:", isMatch);
 
       if (!isMatch) {
         return res.status(401).json({ success: false, message: "Password salah." });
       }
 
-      // 🔐 Buat token JWT
+      // 3. 🔐 Buat token JWT
       const token = jwt.sign(
         {
-          id: dataUser[0].id,
-          user: dataUser[0].username,
-          role: dataUser[0].role,
-          canUpload: dataUser[0].canUpload,
-          canGet: dataUser[0].canGet,
+          id: dataUser.id,
+          user: dataUser.username,
+          role: dataUser.role,
+          canUpload: dataUser.canUpload,
+          canGet: dataUser.canGet,
         },
         SECRET_KEY as string,
-        { expiresIn: '1d' } // Token valid 30 menit
+        { expiresIn: '1d' }
       );
 
-      // 🍪 Simpan token di cookie
+      // 4. 🍪 Simpan token di cookie nganggo nookies
       nookies.set({ res }, 'sessionid', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 30 * 60, // 30 menit
+        maxAge: 30 * 60, // Iki 30 menit sesuai request-mu
         path: '/',
       });
 
+      // 5. Return success
       return res.status(200).json({
         success: true,
         message: 'Login user berhasil',
         token,
         user: {
-          id: dataUser[0].id,
-          user: dataUser[0].username,
-          role: dataUser[0].role,
-          canUpload: dataUser[0].canUpload,
-          canGet: dataUser[0].canGet,
+          id: dataUser.id,
+          user: dataUser.username,
+          role: dataUser.role,
+          canUpload: dataUser.canUpload,
+          canGet: dataUser.canGet,
         },
       });
 
-    } catch (error) {
-      console.error("Login error:", error);
-      return res.status(500).json({ success: false, message: "Internal Server Error" });
+    } catch (error: unknown) {
+      // Ngonversi unknown dadi Error object ben iso diwaca message-ne
+      const err = error as Error;
+      
+      console.error('🔴 Database Error:', err.message);
+
+      // Yen kowe pengen mbedakno error Prisma (misal: koneksi mati)
+      // kowe iso nambahno pengecekan neng kene
+      return res.status(500).json({ 
+        success: false, 
+        msg: 'Gagal mengakses database',
+        // Opsi: tampilno error message pas dev mode wae
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+      });
     }
+
   }
 
   return res.status(405).json({ success: false, message: `Method ${req.method} Not Allowed` });

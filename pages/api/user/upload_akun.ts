@@ -1,88 +1,63 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-//import { db } from "@/config/firebase";
-import { Timestamp } from 'firebase-admin/firestore';
 import axios from 'axios';
-import db from '@/config/db';
+import { prisma } from '@/lib/prisma';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    if (req.method === 'POST') {
-      const { cokis, userId } = req.body;
+    const { cokis, userId } = req.body;
 
-      // Validasi input
-      if (!cokis || !userId) {
-        return res.status(401).json({ message: 'userId tidak ditemukan...!' });
-      }
-
-      //Mysql
-       const now = new Date();
-       const year = now.getFullYear();
-       const month = String(now.getMonth() + 1).padStart(2, '0');
-       const day = String(now.getDate()).padStart(2, '0');
-       let hours = now.getHours();
-       const minutes = String(now.getMinutes()).padStart(2, '0');
-       const seconds = String(now.getSeconds()).padStart(2, '0');
-       const today = `${year}-${month}-${day}:${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
-
-      //Firebase
-      // const check_permissions = await db.collection('users')
-      // .where('username', '==', userId).where('canUpload', '==', true).get();
-
-      // if (check_permissions.empty) {
-      //   return res.status(401).json({error: 'You dont have permissions to access..'});
-      // }
-
-      // //const docId = `FB-${userId}`;
-      // const sendFB = db.collection('fb_akun').doc();
-      // sendFB.set({
-      //   fbne: userId,
-      //   cokis: cokis,
-      //   created_at: Timestamp.now()
-      // },{merge:true});
-      // // Kirim ke socket
-      // await axios.post(`${process.env.NEXT_PUBLIC_SOCKET_URL}/broadcast`, {
-      //   event: "send-cokis",
-      //   payload: {
-      //     message: `User: ${userId} send cokis..`,
-      //     fb: cokis,
-      //   }
-      // });
-
-      //Mysql
-      // Check permissions in MySQL
-      const [userRows] = await db.execute(
-        'SELECT canUpload FROM users WHERE username = ? AND canUpload = 1 LIMIT 1',
-        [userId]
-      );
-
-      if (!Array.isArray(userRows) || userRows.length === 0) {
-        return res.status(401).json({ error: 'You dont have permissions to access..' });
-      }
-
-      // Insert into fb_akun table
-      const [uploadCokis] = await db.execute(
-        'INSERT INTO fb_akun (fbne, cokis, created_at) VALUES (?, ?, ?)',
-        [userId, cokis, today]
-      );
-
-      if ((uploadCokis as any).affectedRows === 1) {
-        // Kirim ke socket
-        await axios.post(`${process.env.NEXT_PUBLIC_SOCKET_URL}/broadcast`, {
-          event: `send-cokis-${userId}`,
-          payload: {
-        message: `User: ${userId} send cokis..`,
-        fb: cokis,
-          }
-        });
-        return res.status(200).json({ success: true, cokis: cokis });
-      }
-      
+    // Validasi input
+    if (!cokis || !userId) {
+      return res.status(401).json({ message: 'userId tidak ditemukan...!' });
     }
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+
+    const user = await prisma.user.findFirst({
+      where: {
+        username: userId,
+        canUpload: 1,
+      },
+      select: {
+        canUpload: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: 'You dont have permissions to access..' });
+    }
+
+    // 2. Insert into fb_akun table
+    const uploadCokis = await prisma.fbAkun.create({
+      data: {
+        fbne: userId,
+        cokis: cokis,
+        created_at: new Date(), // Prisma otomatis nangani format DateTime
+      },
+    });
+
+    if (uploadCokis) {
+      // 3. Kirim ke socket
+      await axios.post(`${process.env.NEXT_PUBLIC_SOCKET_URL}/broadcast`, {
+        event: `send-cokis-${userId}`,
+        payload: {
+          message: `User: ${userId} send cokis..`,
+          fb: cokis,
+        },
+      });
+    }
+    return res.status(200).json({ success: true, cokis: cokis });
   } catch (error) {
-    console.error('Database error:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return res.status(500).json({ error: `Gagal mengakses database: ${errorMessage}` });
+    // Ngonversi unknown dadi Error object ben iso diwaca message-ne
+    const err = error as Error;
+    
+    console.error('🔴 Database Error:', err.message);
+
+    // Yen kowe pengen mbedakno error Prisma (misal: koneksi mati)
+    // kowe iso nambahno pengecekan neng kene
+    return res.status(500).json({ 
+      success: false, 
+      msg: 'Gagal mengakses database',
+      // Opsi: tampilno error message pas dev mode wae
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
   }
 }

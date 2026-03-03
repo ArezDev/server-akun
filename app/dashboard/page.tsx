@@ -1,399 +1,211 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Swal from 'sweetalert2';
-import { FaUser, FaSyncAlt, FaUpload, FaCopy, FaTrash, FaSave } from 'react-icons/fa';
+import { FaSyncAlt, FaUpload, FaCopy, FaTrash, FaSave, FaShieldAlt } from 'react-icons/fa';
 import io from 'socket.io-client';
 import { CgLogOut } from "react-icons/cg";
 import { closeSwal, showLoadingSwal } from '@/components/base/Loading';
-
 
 const Dashboard: React.FC = () => {
   const router = useRouter();
   const [accounts, setAccounts] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [userData, setUserData] = useState<{ id: number; user: string; role: string; canGet: boolean; canUpload: boolean; } | null>(null);
-  const isLoading = useRef(false);
   
+  const isLoadingRef = useRef(false);
+
   useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const res = await axios.get('/api/user/auth', { withCredentials: true });
+        const user = res.data.user;
 
-    let socket: ReturnType<typeof io>;
-
-    const initialize = async () => {
-      //getAkun info
-      const myInfo = await axios.get('/api/user/auth', { withCredentials: true });
-
-      //websocket Initialized
-      socket = io(process.env.NEXT_PUBLIC_SOCKET_URL, {
-        transports: ["websocket"],
-      });
-
-      socket.on(`send-cokis-${myInfo.data?.user?.user}`, async (data) => {
-
-        console.log('Akun diterima:', data);
-
-        if (data?.fb && !isLoading.current) {
-
-          if (isLoading.current) {
-            console.log("⏳ Masih memproses, abaikan event baru.");
-            return; // cegah eksekusi berulang
-          }
-
-          //set Loading akun..
-          isLoading.current = true;
-
-          // Tampilkan loading
-          showLoadingSwal('Mendapatkan akun...');
-
-          try {
-
-            //console.log(userData)
-            // Get user ID dari auth API
-            const authRes = await axios.get('/api/user/auth', { withCredentials: true });
-            const userId = authRes.data?.user?.user;
-
-            if (!userId) throw new Error('User ID tidak ditemukan');
-
-            // Get akun dengan user ID
-            const akunRes = await axios.get<{ fb: string }>('/api/user/akun', {
-              params: { user: userId },
-            });
-
-            const akunText = akunRes.data?.fb || '';
-            if (akunText) {
-              setAccounts(akunText);
-            }
-
-          } catch (error: any) {
-
-            console.warn('Gagal mengambil akun:', error.message);
-
-            closeSwal();
-
-            //Swal.fire('Gagal', 'Terjadi kesalahan saat mendapatkan akun.', 'error');
-            Swal.fire({
-              position: "top-end",
-              icon: "error",
-              title: "Terjadi kesalahan saat mendapatkan akun.",
-              showConfirmButton: false,
-              timer: 1500,
-              toast: true,
-            });
-
-          } finally {
-            setTimeout(() => {
-              isLoading.current = false; // beri waktu delay agar tidak langsung terbuka untuk event berikutnya
-              console.log("✅ Selesai, siap terima event lagi.");
-              closeSwal();
-              fetchAccounts();
-            }, 2000); // delay sesuai dengan swal success timer
-          }
+        if (user.role !== 'member') {
+          router.push('/');
+          return;
         }
-      });
 
-      //handle WebSocket
-      socket.on('connect', () => {
-        console.log('Connected to WebSocket server');
-      });
-
-      // Listen for disconnect event
-      socket.on('disconnect', () => {
-        console.log('Disconnected from WebSocket server');
-      });
-
-      // 🔐 Verifikasi user
-      const checkUser = async () => {
-        try {
-          const res = await axios.get('/api/user/auth', { withCredentials: true });
-          const user = res.data.user;
-          if (user.role !== 'member') {
-            //Swal.fire('Akses Ditolak', 'Who are you?', 'error');
-            Swal.fire({
-              position: "top-end",
-              icon: "error",
-              title: "Your IP Address has been blocked !",
-              showConfirmButton: false,
-              timer: 1500,
-              toast: true,
-            });
-            router.push('/');
-            return;
-          }
-          setUserData(user);
-          fetchAccounts();
-        } catch (error: unknown) {
-          if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
-            console.log(error.message);
-            //Swal.fire('Unauthorized', error.response.data.message, 'error');
-            Swal.fire({
-              position: "top-end",
-              icon: "error",
-              title: error.response.data.message,
-              showConfirmButton: false,
-              timer: 1500,
-              toast: true,
-            });
-            router.push('/');
-            return false;
-          }
-
-        }
-      };
-
-      checkUser();
+        setUserData(user);
+        fetchAccounts(user.user);
+      } catch (error: unknown) {
+        const err = error as Error;
+        Swal.fire('Error', `${err.message || 'Gagal Logout'}`, 'error');
+      }
     };
 
-    initialize();
+    checkUser();
+  }, [router]);
 
-    // Cleanup on unmount
-    // return () => {
-    //   if (socket) socket.connect();
-    // };
+  useEffect(() => {
+    if (!userData?.user) return;
 
-  }, []);
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL as string, {
+      transports: ["websocket"],
+    });
 
-  // Ambil data akun dari API saat halaman dimuat
-  const fetchAccounts = async () => {
+    const eventName = `send-cokis-${userData.user}`;
+
+    socket.on(eventName, async (data) => {
+      if (data?.fb && !isLoadingRef.current) {
+        isLoadingRef.current = true;
+        showLoadingSwal('Incoming Account...');
+        try {
+          await fetchAccounts(userData.user);
+        } finally {
+          setTimeout(() => {
+            isLoadingRef.current = false;
+            closeSwal();
+          }, 1500);
+        }
+      }
+    });
+
+    return () => {
+      socket.off(eventName);
+      socket.disconnect();
+    };
+  }, [userData?.user]);
+
+  const fetchAccounts = async (username?: string) => {
+    const targetUser = username || userData?.user;
+    if (!targetUser) return;
+
     try {
       setLoading(true);
-      // get user id
-      const getUserId = await axios.get('/api/user/auth', { withCredentials: true });
-      //get akun dengan user id
-      if (getUserId.data?.user?.user) {
-        const res = await axios.get<{ fb: string }>('/api/user/akun', {
-          params: {
-            user: getUserId.data.user.user
-          },
-        });
-        const akunText = res.data.fb || '';
-        setAccounts(akunText);
-      }
-      
-    } catch (err: any) {
-      console.warn('Gagal memuat data akun:', err.message);
-      //Swal.fire('Error', 'Gagal memuat data akun', 'error');
-      Swal.fire({
-        position: "top-end",
-        icon: "error",
-        title: "Gagal memuat data akun",
-        showConfirmButton: false,
-        timer: 1500,
-        toast: true,
+      const res = await axios.get<{ fb: string }>('/api/user/akun', {
+        params: { user: targetUser },
       });
+      setAccounts(res.data.fb || '');
+    } catch (err: any) {
+      console.warn('Error loading:', err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Salin akun ke clipboard
   const handleCopy = () => {
+    if (!accounts) return;
     navigator.clipboard.writeText(accounts).then(() => {
       Swal.fire({
         position: "top-end",
         icon: "success",
-        title: "Data akun telah disalin.",
+        title: "Copied!",
         showConfirmButton: false,
-        timer: 1500,
+        timer: 800,
         toast: true,
       });
     });
   };
 
-  // Hapus akun dari database
-  const handleDelete = async () => {
-    const confirmResult = await Swal.fire({
-      title: 'Yakin ingin menghapus?',
-      text: 'Data akun akan dihapus permanen.',
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonText: 'Ya, hapus!',
-      cancelButtonText: 'Batal',
-    });
-
-    if (confirmResult.isConfirmed) {
-      try {
-        const getUserId = await axios.get('/api/user/auth', { withCredentials: true });
-        const deleteAkun = await axios.delete('/api/user/akun', { params: { user: getUserId.data?.user?.user } });
-        if (deleteAkun.data?.success === true) {
-          //Swal.fire('Berhasil', 'Semua akun telah dihapus.', 'success');
-          Swal.fire({
-            position: "top-end",
-            icon: "success",
-            title: "Semua akun telah dihapus !",
-            showConfirmButton: false,
-            timer: 1500,
-            toast: true,
-          });
-          setAccounts('');
-        }
-
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
-          console.warn(`${error?.response?.data?.msg || 'Tidak dapat menghapus akun.'}`);
-          Swal.fire('Gagal', `${error?.response?.data?.msg || 'Tidak dapat menghapus akun.'}`, 'error');
-        }
-        
-      }
-    }
-  };
-
-  // Ekspor ke file teks
-  const handleExport = () => {
-    const filename = `akun-${userData?.user}-${new Date().toISOString().split('T')[0]}.txt`;
-    const blob = new Blob([accounts], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const HandleUpload = () => {
-    router.push('/upload');
-  };
-
-   const HandleLogout = async () => {
+  const handleLogout = async () => {
     try {
-      // Memanggil API logout
-      const response = await axios.post('/api/user/logout');
-
-      if (response.data.message === 'Logout berhasil') {
-        // Menampilkan pesan sukses
-        //Swal.fire('Sukses', 'Anda telah berhasil logout', 'success');
-        Swal.fire({
-          position: "top-end",
-          icon: "success",
-          title: "Anda telah berhasil logout",
-          showConfirmButton: false,
-          timer: 1500,
-          toast: true,
-        });
-        
-        // Mengarahkan ulang ke halaman utama atau halaman login
-        router.push('/');
-      }
-    } catch (error: any) {
-      console.warn('Logout error:', error.message);
-      Swal.fire('Gagal', 'Terjadi kesalahan saat logout', 'error');
+      await axios.post('/api/user/logout');
+      router.push('/');
+    } catch (error: unknown) {
+      const err = error as Error;
+      Swal.fire('Error', `${err.message || 'Gagal Logout'}`, 'error');
     }
   };
-  
-  function ActionButton({
-    onClick,
-    icon,
-    children,
-    color = "blue",
-  }: {
-    onClick: () => void;
-    icon: React.ReactNode;
-    children: React.ReactNode;
-    color?: "blue" | "green" | "orange" | "red";
-  }) {
-    const colorMap = {
-      blue: "bg-blue-500 hover:bg-blue-600",
-      green: "bg-green-500 hover:bg-green-600",
-      orange: "bg-orange-500 hover:bg-orange-600",
-      red: "bg-red-500 hover:bg-red-600",
-    };
-
-    return (
-      <button
-        onClick={onClick}
-        className={`flex items-center gap-2 ${colorMap[color]} text-white px-4 py-2 rounded-lg shadow-sm transition`}
-      >
-        {icon}
-        {children}
-      </button>
-    );
-  }
-
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-100">
-      {/* Navbar */}
-      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-lg font-semibold">
-            <FaUser className="text-blue-600" />
-            {/* Detail Info Akun */}
-            <span className="text-gray-800 dark:text-gray-100">
-              {userData?.user} | Total Akun: {accounts ? accounts.split('\n').length : 0}
-            </span>
+    <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans selection:bg-blue-500/30">
+      
+      {/* Glow Effect Background */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full h-[300px] bg-blue-600/10 blur-[120px] pointer-events-none"></div>
+
+      {/* Modern Navbar */}
+      <nav className="sticky top-0 z-50 backdrop-blur-md bg-[#0f172a]/70 border-b border-slate-800">
+        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-600 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+              <FaShieldAlt className="text-white text-xl" />
+            </div>
+            <div>
+              <h1 className="text-sm font-mono tracking-tight text-white uppercase">Server Akun</h1>
+              <p className="text-[10px] text-slate-400 font-mono">Status: Connected as {userData?.user || '...'}</p>
+            </div>
           </div>
           
-          <button
-            onClick={HandleLogout}
-            className="text-red-500 hover:text-red-600 transition text-xl"
-            title="Logout"
-          >
-            <CgLogOut />
-          </button>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:block text-right">
+              <p className="text-xs text-slate-300 font-mono">Total Akun: {accounts ? accounts.split('\n').filter(Boolean).length : 0}</p>
+              {/* <p className="text-sm font-bold text-blue-400">{accounts ? accounts.split('\n').filter(Boolean).length : 0}</p> */}
+            </div>
+            <button 
+              onClick={handleLogout}
+              className="p-2.5 rounded-full bg-slate-800 hover:bg-red-500/20 hover:text-red-400 transition-all duration-300 border border-slate-700"
+            >
+              <CgLogOut className="text-xl" />
+            </button>
+          </div>
         </div>
       </nav>
 
-      {/* Page content */}
-      <main className="max-w-4xl mx-auto py-8 px-4 space-y-6">
-        {loading ? (
-          // <div className="text-center py-10 text-gray-500 dark:text-gray-400">
-          //   Loading akun...
-          // </div>
-          <>
-          {/* Akun textarea */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg 
-                border border-gray-200 dark:border-gray-700"
-            >
-              <textarea
-                className="w-full h-60 p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 
-                dark:border-gray-700 text-sm font-mono resize-none overflow-y-auto 
-                scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100"
-                value={"Loading akun..."}
-                readOnly
-                wrap="off"
-              />
+      <main className="max-w-5xl mx-auto py-10 px-6">
+        
+        {/* Main Interface */}
+        <div className="grid grid-cols-1 gap-8">
+          
+          {/* Textarea Section */}
+          <div className="relative group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+            <div className="relative bg-[#1e293b] rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-3 border-b border-slate-700 bg-slate-800/50">
+                <span className="text-xs font-mono text-slate-400 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Raw Data Output
+                </span>
+                <span className="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300">UTF-8</span>
               </div>
-
-          {/* Buttons */}
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg 
-            flex flex-wrap justify-center gap-3 mb-3">
-              <ActionButton onClick={handleCopy} icon={<FaCopy />} color="green">Copy</ActionButton>
-              <ActionButton onClick={handleDelete} icon={<FaTrash />} color="red">Delete</ActionButton>
-              <ActionButton onClick={handleExport} icon={<FaSave />} color="orange">Save</ActionButton>
-              <ActionButton onClick={fetchAccounts} icon={<FaSyncAlt />} color="blue">Reload</ActionButton>
-              <ActionButton onClick={HandleUpload} icon={<FaUpload />} color="blue">Upload Akun</ActionButton>
-            </div>
-          </>
-        ) : (
-          <>
-          {/* Akun textarea */}
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg 
-                border border-gray-200 dark:border-gray-700"
-            >
               <textarea
-                className="w-full h-60 p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-300 
-                dark:border-gray-700 text-sm font-mono resize-none overflow-y-auto 
-                scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100"
-                value={accounts}
+                className="w-full h-80 p-6 bg-transparent text-blue-50 font-mono text-sm focus:outline-none resize-none scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
+                value={loading ? "Scanning database..." : accounts}
+                placeholder="Waiting for incoming accounts..."
                 readOnly
-                wrap="off"
+                spellCheck={false}
               />
-              </div>
-
-          {/* Buttons */}
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-lg 
-            flex flex-wrap justify-center gap-3 mb-3">
-              <ActionButton onClick={handleCopy} icon={<FaCopy />} color="green">Copy</ActionButton>
-              <ActionButton onClick={handleDelete} icon={<FaTrash />} color="red">Delete</ActionButton>
-              <ActionButton onClick={handleExport} icon={<FaSave />} color="orange">Save</ActionButton>
-              <ActionButton onClick={fetchAccounts} icon={<FaSyncAlt />} color="blue">Reload</ActionButton>
-              <ActionButton onClick={HandleUpload} icon={<FaUpload />} color="blue">Upload Akun</ActionButton>
             </div>
-          </>
-        )}
+          </div>
+
+          {/* Action Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <ActionButton onClick={handleCopy} icon={<FaCopy />} label="Copy All" color="blue" />
+            <ActionButton onClick={() => fetchAccounts()} icon={<FaSyncAlt />} label="Reload" color="slate" />
+            <ActionButton onClick={() => router.push('/upload')} icon={<FaUpload />} label="Upload" color="slate" />
+            <ActionButton onClick={() => {}} icon={<FaSave />} label="Export" color="slate" />
+            <ActionButton onClick={() => {}} icon={<FaTrash />} label="Delete" color="red" />
+          </div>
+
+        </div>
       </main>
+
+      <footer className="py-10 text-center">
+        <p className="text-xs text-slate-500 font-mono">v3.0.0-stable | Developed with Prisma & Next.js</p>
+      </footer>
     </div>
+  );
+};
+
+// Reusable Button Component
+const ActionButton = ({ onClick, icon, label, color }: any) => {
+  const colors: any = {
+    blue: "bg-blue-600 hover:bg-blue-500 shadow-blue-900/20",
+    slate: "bg-slate-800 hover:bg-slate-700 border border-slate-700",
+    red: "bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-900/50",
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm transition-all active:scale-95 shadow-lg ${colors[color]}`}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 };
 

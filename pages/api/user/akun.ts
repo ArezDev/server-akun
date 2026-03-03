@@ -1,100 +1,62 @@
-import db from '@/config/db';
+import { prisma } from '@/lib/prisma';
 import type { NextApiRequest, NextApiResponse } from 'next';
-//import { db } from '@/config/firebase';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    //Firebase
-    // if (req.method === 'GET') {
-    //   const { user } = req.query;
-    //   if (!user) {
-    //     return res.status(401).end(`Missing user query.`);
-    //   }
+    const { user } = req.query;
 
-    //   const getFB = await db.collection('fb_akun')
-    //     .where('fbne', '==', user)
-    //     .orderBy('created_at', 'desc')
-    //     .get();
+    // Proteksi awal soko query sing kosong utawa array
+    if (!user || Array.isArray(user)) {
+      return res.status(401).json({ message: 'Missing or invalid user query.' });
+    }
 
-    //   if (getFB.empty) {
-    //     return res.status(200).json([]);
-    //   }
-
-    //   const cokisList: string[] = [];
-    //   getFB.forEach((doc) => {
-    //     const data = doc.data();
-    //     if (data.cokis) {
-    //       cokisList.push(data.cokis);
-    //     }
-    //   });
-
-    //   return res.status(200).json({ fb:cokisList.join('\n') });
-
-    // } else if (req.method === 'DELETE') {
-    //   const { user } = req.query;
-    //   if (!user || Array.isArray(user)) {
-    //     return res.status(400).json({ error: 'Invalid or missing id parameter' });
-    //   }
-    //   const getFB = await db.collection('fb_akun').where('fbne', '==', user).get();
-    //   if (getFB.empty) {
-    //     console.log('Tidak ada dokumen dengan fbne:', user);
-    //     return res.status(405).json({error: `Tidak ada dokumen dengan fbne: ${user}`});
-    //   }
-    //   const batch = db.batch();
-    //   getFB.docs.forEach(doc => {
-    //     batch.delete(doc.ref);
-    //   });
-    //   await batch.commit();
-    //   return res.status(200).json({ success: true, msg: 'Delete akun success..!' });
-    // }
-
-    //Mysql
     if (req.method === 'GET') {
-      const { user } = req.query;
-      if (!user || Array.isArray(user)) {
-      return res.status(401).end(`Missing user query.`);
+      // 1. Njupuk kabeh cokis berdasarkan fbne (user)
+      const rows = await prisma.fbAkun.findMany({
+        where: { fbne: user },
+        orderBy: { created_at: 'desc' },
+        select: { cokis: true } // Mung njupuk kolom cokis wae
+      });
+
+      if (rows.length === 0) {
+        return res.status(200).json([]);
       }
 
-      const [rows] = await db.execute(
-      'SELECT cokis FROM fb_akun WHERE fbne = ? ORDER BY created_at DESC',
-      [user]
-      );
-
-      if (!rows || (Array.isArray(rows) && rows.length === 0)) {
-      return res.status(200).json([]);
-      }
-
-      const cokisList: string[] = (rows as any[]).map(row => row.cokis).filter(Boolean);
-
+      // Map dadi string array lan gabung dadi siji nggo newline
+      const cokisList = rows.map(row => row.cokis).filter(Boolean);
       return res.status(200).json({ fb: cokisList.join('\n') });
 
     } else if (req.method === 'DELETE') {
-      const { user } = req.query;
-      if (!user || Array.isArray(user)) {
-      return res.status(400).json({ error: 'Invalid or missing id parameter' });
-      }
+      // 2. Mbusak kabeh akun sing duwe fbne podo karo user
+      const result = await prisma.fbAkun.deleteMany({
+        where: { fbne: user }
+      });
 
-      const [result]: any = await db.execute(
-      'DELETE FROM fb_akun WHERE fbne = ?',
-      [user]
-      );
-
-      if (result.affectedRows === 0) {
-      console.log('Tidak ada dokumen dengan fbne:', user);
-      return res.status(404).json({ success: false, msg: `Tidak ada dokumen dengan fbne: ${user}` });
+      if (result.count === 0) {
+        console.log('Tidak ada dokumen dengan fbne:', user);
+        return res.status(404).json({ success: false, msg: `Tidak ada dokumen dengan fbne: ${user}` });
       }
 
       return res.status(200).json({ success: true, msg: 'Delete akun success..!' });
     }
 
-    res.setHeader('Allow', ['GET']);
+    // Handle method liyane
+    res.setHeader('Allow', ['GET', 'DELETE']);
     return res.status(405).end(`Method ${req.method} Not Allowed`);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    // Ngonversi unknown dadi Error object ben iso diwaca message-ne
+    const err = error as Error;
+    
+    console.error('🔴 Database Error:', err.message);
 
-    console.error('Database error:', error.message);
-
-    return res.status(500).json({ success: false, msg: 'Gagal mengakses database' });
-
+    // Yen kowe pengen mbedakno error Prisma (misal: koneksi mati)
+    // kowe iso nambahno pengecekan neng kene
+    return res.status(500).json({ 
+      success: false, 
+      msg: 'Gagal mengakses database',
+      // Opsi: tampilno error message pas dev mode wae
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined 
+    });
   }
 }

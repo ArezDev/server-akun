@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -36,7 +38,7 @@ export default function AdminPanel() {
 
       const user = res.data.user;
 
-      if (user.role !== 'admin') {
+      if (user.role !== 'ketua') {
         Swal.fire('Akses Ditolak', 'Kamu bukan admin!', 'error');
         router.push('/admin/login');
         return false;
@@ -67,7 +69,7 @@ export default function AdminPanel() {
           withCredentials: true
         });
 
-        if (res.data.user.role !== 'admin') {
+        if (res.data.user.role !== 'ketua') {
           Swal.fire('Akses Ditolak', 'Kamu bukan admin!', 'error');
           router.push('/admin/login');
         }
@@ -115,43 +117,6 @@ export default function AdminPanel() {
   }, [page, keyword]);
 
   const handleCreateUser = async () => {
-  // const { value: formValues } = await Swal.fire({
-  //     title: 'Create User',
-  //     html: `
-  //       <input id="swal-input-username" class="swal2-input" placeholder="Username" />
-  //       <input id="swal-input-password" class="swal2-input" type="password" placeholder="Password" />
-  //     `,
-  //     focusConfirm: false,
-  //     preConfirm: () => {
-  //       const user = (document.getElementById('swal-input-username') as HTMLInputElement).value;
-  //       const pass = (document.getElementById('swal-input-password') as HTMLInputElement).value;
-  //       if (!user || !pass) {
-  //         Swal.showValidationMessage('Username and password are required');
-  //       }
-  //       return { user, pass };
-  //     },
-  //     showCancelButton: true,
-  //     cancelButtonText: 'Cancel',
-  //     confirmButtonText: 'Create',
-  //     confirmButtonColor: '#3085d6',
-  //     cancelButtonColor: '#d33',
-  //   });
-
-  //   if (formValues) {
-  //     const { user, pass } = formValues;
-  //     showLoadingSwal();
-  //     try {
-  //       // Kirim data ke server menggunakan axios POST
-  //       const response = await axios.post('/api/admin/create', { user, pass });
-  //       if (response.data?.success === true) {
-  //         Swal.fire('Success', `User ${user} created successfully!`, 'success');
-  //         await fetchUsers();
-  //       }
-  //     } catch (error: unknown) {
-  //       // Menangani error jika terjadi
-  //       Swal.fire('Error', 'Failed to create user!', 'error');
-  //     }
-  //   }
     const { value: formValues } = await Swal.fire({
       title: 'Create User',
       html: `
@@ -203,8 +168,9 @@ export default function AdminPanel() {
           Swal.fire('Success', `User ${user} berhasil dibuat`, 'success');
           await fetchUsers();
         }
-      } catch (error) {
-        Swal.fire('Error', 'Gagal membuat user!', 'error');
+      } catch (error: unknown) {
+          const err = error as Error;
+          Swal.fire('Error', `${err.message || 'Gagal Membuat user!'}`, 'error');
       }
     }
 

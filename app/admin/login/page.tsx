@@ -36,7 +36,7 @@ export default function Login() {
         pass,
       });
 
-      if (response.data.user.role === 'admin') {
+      if (response.data.user.role === 'ketua') {
           Swal.close();
           Swal.fire({
             icon: 'success',
@@ -46,10 +46,6 @@ export default function Login() {
             timerProgressBar: true,
           });
           router.push('/admin'); // Redirect to dashboard if login is successful
-          // setTimeout(() => {
-            
-          // }, 1000);
-          
       }
       else {
         Swal.fire('Error', response.data.message, 'error');
