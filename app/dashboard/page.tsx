@@ -64,7 +64,7 @@ const Dashboard: React.FC = () => {
     socket.on(eventName, async (data) => {
       if (data?.fb && !isLoadingRef.current) {
         isLoadingRef.current = true;
-        showLoadingSwal('Incoming Account...');
+        showLoadingSwal('Akun teko...');
         try {
           await fetchAccounts(userData.user);
         } finally {
@@ -221,10 +221,11 @@ const Dashboard: React.FC = () => {
               </div>
               <textarea
                 className="w-full h-80 p-6 bg-transparent text-blue-50 font-mono text-sm focus:outline-none resize-none scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
-                value={loading ? "Scanning database..." : accounts}
-                placeholder="Waiting for incoming accounts..."
+                value={loading ? "Ndoleki akun..." : accounts}
+                placeholder="Ngenteni akun..."
                 readOnly
                 spellCheck={false}
+                wrap='off'
               />
             </div>
           </div>
