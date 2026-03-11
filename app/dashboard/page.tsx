@@ -33,10 +33,21 @@ const Dashboard: React.FC = () => {
         setUserData(user);
         fetchAccounts(user.user);
       } catch (error: unknown) {
-        const err = error as Error;
-        Swal.fire('Error', `${err.message || 'Gagal Logout'}`, 'error');
-      }
-    };
+      const err = error as Error;
+      
+      // Nambah timer supaya progress bar-e ketok mlaku
+      Swal.fire({
+        title: 'Sesi Login Expired!',
+        text: err.message || 'Silahkan login kembali', // Tambah info pesen asline
+        icon: 'warning',
+        timer: 1500, // Kasi wektu 2 detik sakdurunge nutup dewe
+        timerProgressBar: true,
+        showConfirmButton: false,
+      }).then(() => {
+        router.push('/');
+      });
+    }
+  };
 
     checkUser();
   }, [router]);
@@ -102,6 +113,54 @@ const Dashboard: React.FC = () => {
     });
   };
 
+  const handleExport = () => {
+    const filename = `akun-${userData?.user}-${new Date().toISOString().split('T')[0]}.txt`;
+    const blob = new Blob([accounts], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Hapus akun dari database
+  const handleDelete = async () => {
+    const confirmResult = await Swal.fire({
+      title: 'Yakin ingin menghapus?',
+      text: 'Data akun akan dihapus permanen.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, hapus!',
+      cancelButtonText: 'Batal',
+    });
+
+    if (confirmResult.isConfirmed) {
+      try {
+        const getUserId = await axios.get('/api/user/auth', { withCredentials: true });
+        const deleteAkun = await axios.delete('/api/user/akun', { params: { user: getUserId.data?.user?.user } });
+        if (deleteAkun.data?.success) {
+          Swal.fire({
+            position: "top-end",
+            icon: "success",
+            title: "Semua akun telah dihapus !",
+            showConfirmButton: false,
+            timer: 1500,
+            toast: true,
+          });
+          setAccounts('');
+        }
+
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response && error.response.status === 401) {
+          console.warn(`${error?.response?.data?.msg || 'Tidak dapat menghapus akun.'}`);
+          Swal.fire('Gagal', `${error?.response?.data?.msg || 'Tidak dapat menghapus akun.'}`, 'error');
+        }
+        
+      }
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await axios.post('/api/user/logout');
@@ -127,15 +186,14 @@ const Dashboard: React.FC = () => {
             </div>
             <div>
               <h1 className="text-sm font-mono tracking-tight text-white uppercase">Server Akun</h1>
-              <p className="text-[10px] text-slate-400 font-mono">Status: Connected as {userData?.user || '...'}</p>
+              <p className="text-[10px] text-slate-400 font-mono">Connected as {userData?.user || '...'}</p>
             </div>
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="hidden md:block text-right">
+            {/* <div className="hidden md:block text-right">
               <p className="text-xs text-slate-300 font-mono">Total Akun: {accounts ? accounts.split('\n').filter(Boolean).length : 0}</p>
-              {/* <p className="text-sm font-bold text-blue-400">{accounts ? accounts.split('\n').filter(Boolean).length : 0}</p> */}
-            </div>
+            </div> */}
             <button 
               onClick={handleLogout}
               className="p-2.5 rounded-full bg-slate-800 hover:bg-red-500/20 hover:text-red-400 transition-all duration-300 border border-slate-700"
@@ -157,9 +215,9 @@ const Dashboard: React.FC = () => {
             <div className="relative bg-[#1e293b] rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
               <div className="flex items-center justify-between px-6 py-3 border-b border-slate-700 bg-slate-800/50">
                 <span className="text-xs font-mono text-slate-400 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Raw Data Output
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> {accounts ? accounts.split('\n').filter(Boolean).length : 0} Akun
                 </span>
-                <span className="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300">UTF-8</span>
+                <span className="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300">{userData?.user || '...'}</span>
               </div>
               <textarea
                 className="w-full h-80 p-6 bg-transparent text-blue-50 font-mono text-sm focus:outline-none resize-none scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
@@ -176,15 +234,15 @@ const Dashboard: React.FC = () => {
             <ActionButton onClick={handleCopy} icon={<FaCopy />} label="Copy All" color="blue" />
             <ActionButton onClick={() => fetchAccounts()} icon={<FaSyncAlt />} label="Reload" color="slate" />
             <ActionButton onClick={() => router.push('/upload')} icon={<FaUpload />} label="Upload" color="slate" />
-            <ActionButton onClick={() => {}} icon={<FaSave />} label="Export" color="slate" />
-            <ActionButton onClick={() => {}} icon={<FaTrash />} label="Delete" color="red" />
+            <ActionButton onClick={handleExport} icon={<FaSave />} label="Export" color="slate" />
+            <ActionButton onClick={handleDelete} icon={<FaTrash />} label="Delete" color="red" />
           </div>
 
         </div>
       </main>
 
       <footer className="py-10 text-center">
-        <p className="text-xs text-slate-500 font-mono">v3.0.0-stable | Developed with Prisma & Next.js</p>
+        <p className="text-xs text-slate-500 font-mono">Powered by BALANE SØHÏB • 2026</p>
       </footer>
     </div>
   );

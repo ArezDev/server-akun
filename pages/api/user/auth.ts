@@ -20,7 +20,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     // Verifikasi token
     const decoded = jwt.verify(token, SECRET_KEY as string);
     return res.status(200).json({ success: true, user: decoded });
-  } catch (error) {
-    return res.status(401).json({ success: false, message: 'Sesi Login tidak valid atau expired' });
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.log(err.message);
+    return res.status(401).json({ success: false, message: 'Sesi Login tidak valid atau token expired' });
   }
 }
